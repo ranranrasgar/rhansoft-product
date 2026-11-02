@@ -41,13 +41,13 @@ declare global {
 }
 
 // ── Midtrans Configuration ──────────────────────────────────────
-// Sandbox (untuk local dev) — gunakan ini selama development
-const MIDTRANS_MERCHANT_ID = "G627599304"
-const MIDTRANS_SANDBOX_CLIENT_KEY = "SB-Mid-client-9UxxhPZV5Wxceplx"
-const MIDTRANS_SANDBOX_SERVER_KEY = "SB-Mid-server-Z8f-7xh9csvMH3lbMrKyNkgx"
+// Sandbox (untuk local dev) — baca dari env, fallback ke sandbox keys
+const MIDTRANS_MERCHANT_ID = import.meta.env.VITE_MIDTRANS_MERCHANT_ID || "G627599304"
+const MIDTRANS_SANDBOX_CLIENT_KEY = import.meta.env.VITE_MIDTRANS_SANDBOX_CLIENT_KEY || "SB-Mid-client-9UxxhPZV5Wxceplx"
+const MIDTRANS_SANDBOX_SERVER_KEY = import.meta.env.VITE_MIDTRANS_SANDBOX_SERVER_KEY || ""
 // Production keys (aktifkan ketika sudah deploy ke production)
-const MIDTRANS_PRODUCTION_CLIENT_KEY = "Mid-client-evts-akuwPi7AsYI"
-const MIDTRANS_PRODUCTION_SERVER_KEY = "Mid-server-i3TKwN3jE734174JkLkzwSLG"
+const MIDTRANS_PRODUCTION_CLIENT_KEY = import.meta.env.VITE_MIDTRANS_PRODUCTION_CLIENT_KEY || "Mid-client-evts-akuwPi7AsYI"
+const MIDTRANS_PRODUCTION_SERVER_KEY = import.meta.env.VITE_MIDTRANS_PRODUCTION_SERVER_KEY || ""
 
 // Deteksi environment: gunakan sandbox jika di local, production jika di deploy
 const isProduction =
@@ -65,29 +65,44 @@ export const MIDTRANS_CONFIG = {
 
 const SNAP_SANDBOX_URL = "https://app.sandbox.midtrans.com/snap/snap.js"
 const SNAP_PRODUCTION_URL = "https://app.midtrans.com/snap/snap.js"
-const SNAP_URL = isProduction ? SNAP_PRODUCTION_URL : SNAP_SANDBOX_URL
+export async function loadSnapScript(snapUrl?: string, clientKey?: string): Promise<void> {
+  let url = snapUrl
+  let key = clientKey
 
-let snapLoaded = false
-let snapLoading: Promise<void> | null = null
+  if (!url || !key) {
+    try {
+      const res = await fetch("/api/midtrans-config")
+      if (res.ok) {
+        const conf = await res.json()
+        url = url || conf.snapUrl
+        key = key || conf.clientKey
+      }
+    } catch {
+      // fallback
+    }
+  }
 
-export function loadSnapScript(): Promise<void> {
-  if (snapLoaded && window.snap) return Promise.resolve()
-  if (snapLoading) return snapLoading
+  url = url || (isProduction ? SNAP_PRODUCTION_URL : SNAP_SANDBOX_URL)
+  key = key || (isProduction ? MIDTRANS_PRODUCTION_CLIENT_KEY : MIDTRANS_SANDBOX_CLIENT_KEY)
 
-  snapLoading = new Promise<void>((resolve, reject) => {
-    if (document.querySelector(`script[src="${SNAP_URL}"]`)) {
-      snapLoaded = true
-      resolve()
-      return
+  if (document.querySelector(`script[src="${url}"]`) && window.snap) {
+    return Promise.resolve()
+  }
+
+  const existing = document.querySelector('script[src*="midtrans.com/snap/snap.js"]')
+  if (existing) {
+    existing.remove()
+  }
+
+  return new Promise<void>((resolve, reject) => {
+    const script = document.createElement("script")
+    script.src = url!
+    script.async = true
+    if (key) {
+      script.setAttribute("data-client-key", key)
     }
 
-    const script = document.createElement("script")
-    script.src = SNAP_URL
-    script.async = true
-    script.setAttribute("data-client-key", MIDTRANS_CONFIG.clientKey)
-
     script.onload = () => {
-      snapLoaded = true
       resolve()
     }
 
@@ -97,8 +112,6 @@ export function loadSnapScript(): Promise<void> {
 
     document.head.appendChild(script)
   })
-
-  return snapLoading
 }
 
 export type MidtransCustomer = {
@@ -142,7 +155,7 @@ export type CreateTransactionParams = {
  */
 export async function requestSnapToken(
   params: CreateTransactionParams & { payment_method?: string }
-): Promise<{ token: string; redirect_url: string }> {
+): Promise<{ token: string; redirect_url: string; snap_url?: string; client_key?: string }> {
   const res = await fetch("/api/create-transaction", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -158,6 +171,8 @@ export async function requestSnapToken(
   return {
     token: data.token,
     redirect_url: data.redirect_url,
+    snap_url: data.snap_url,
+    client_key: data.client_key,
   }
 }
 
@@ -170,8 +185,8 @@ export type PayResult = {
  * Opens the Midtrans Snap payment modal.
  * Returns a promise that resolves with the payment result.
  */
-export async function payWithSnap(token: string): Promise<PayResult> {
-  await loadSnapScript()
+export async function payWithSnap(token: string, snapUrl?: string, clientKey?: string): Promise<PayResult> {
+  await loadSnapScript(snapUrl, clientKey)
 
   if (!window.snap) {
     throw new Error("Midtrans Snap failed to initialize.")

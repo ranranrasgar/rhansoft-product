@@ -141,7 +141,7 @@ export function CheckoutPage() {
       }
 
       // 2. Build Midtrans transaction parameters
-      const orderId = `VE-${Date.now()}`
+      const orderId = `RSF-${Date.now()}`
       const customer: MidtransCustomer = {
         first_name: shipping.firstName,
         last_name: shipping.lastName,
@@ -169,7 +169,7 @@ export function CheckoutPage() {
 
       // 3. Request Snap token from backend (real Midtrans API)
       toast.info("Membuat transaksi...")
-      const { token } = await requestSnapToken({
+      const { token, snap_url, client_key } = await requestSnapToken({
         order_id: orderId,
         gross_amount: Math.round(total),
         customer,
@@ -181,7 +181,7 @@ export function CheckoutPage() {
 
       // 4. Open Midtrans Snap payment modal
       toast.info("Membuka jendela pembayaran...")
-      const result = await payWithSnap(token)
+      const result = await payWithSnap(token, snap_url, client_key)
 
       // 5. Handle payment result
       if (result.status === "success") {

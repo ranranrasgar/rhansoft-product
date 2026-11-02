@@ -115,6 +115,18 @@ app.get("/api/health", async (req, res) => {
   }
 })
 
+// ── Midtrans public config ──────────────────────────────────────
+app.get("/api/midtrans-config", (req, res) => {
+  res.json({
+    isProduction: IS_PRODUCTION,
+    merchantId: MIDTRANS_MERCHANT_ID,
+    clientKey: CLIENT_KEY,
+    snapUrl: IS_PRODUCTION
+      ? "https://app.midtrans.com/snap/snap.js"
+      : "https://app.sandbox.midtrans.com/snap/snap.js",
+  })
+})
+
 // ═══════════════════════════════════════════════════════════════
 //  AUTH ROUTES (Register, Login, Google OAuth, Me, Update Role)
 //  Roles: admin, user, editor
@@ -783,6 +795,11 @@ app.post("/api/create-transaction", async (req, res) => {
       token: transaction.token,
       redirect_url: transaction.redirect_url,
       order_db_id: orderIdDb,
+      client_key: CLIENT_KEY,
+      is_production: IS_PRODUCTION,
+      snap_url: IS_PRODUCTION
+        ? "https://app.midtrans.com/snap/snap.js"
+        : "https://app.sandbox.midtrans.com/snap/snap.js",
     })
   } catch (error) {
     await client.query("ROLLBACK")
@@ -826,7 +843,7 @@ app.get("/api/transaction-status/:orderId", async (req, res) => {
 })
 
 // ── Midtrans Webhook (payment notification) ────────────────────
-app.post("/api/webhook", async (req, res) => {
+const handleWebhook = async (req, res) => {
   const client = await pool.connect()
 
   try {
@@ -922,7 +939,11 @@ app.post("/api/webhook", async (req, res) => {
   } finally {
     client.release()
   }
-})
+}
+
+app.post("/api/webhook", handleWebhook)
+app.post("/api/webhooks/midtrans/callback", handleWebhook)
+app.post("/api/payment/notification", handleWebhook)
 
 // ── List orders ─────────────────────────────────────────────────
 app.get("/api/orders", async (req, res) => {

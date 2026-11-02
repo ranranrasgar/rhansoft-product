@@ -14,13 +14,13 @@ File: `src/lib/midtrans.ts`
 Merchant ID: `G627599304`
 
 **Sandbox (untuk local dev):**
-- Client Key: `SB-Mid-client-9UxxhPZV5Wxceplx`
-- Server Key: `SB-Mid-server-Z8f-7xh9csvMH3lbMrKyNkgx`
+- Client Key: `SB-Mid-client-xxxx` (lihat file `.env`)
+- Server Key: `SB-Mid-server-xxxx` (lihat file `.env`)
 - Snap URL: `https://app.sandbox.midtrans.com/snap/snap.js`
 
 **Production (untuk deploy):**
-- Client Key: `Mid-client-evts-akuwPi7AsYI`
-- Server Key: `Mid-server-i3TKwN3jE734174JkLkzwSLG`
+- Client Key: `Mid-client-xxxx` (lihat file `.env`)
+- Server Key: `Mid-server-xxxx` (lihat file `.env`)
 - Snap URL: `https://app.midtrans.com/snap/snap.js`
 
 ### Auto Environment Detection
