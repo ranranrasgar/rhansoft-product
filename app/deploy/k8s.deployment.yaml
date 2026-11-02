@@ -1,0 +1,116 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: voltedge
+  labels:
+    name: voltedge
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voltedge-web
+  namespace: voltedge
+  labels:
+    app: voltedge-web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: voltedge-web
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: voltedge-web
+    spec:
+      containers:
+        - name: web
+          image: <registry>.azurecr.io/voltedge-web:latest
+          ports:
+            - containerPort: 80
+              name: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 10
+      nodeSelector:
+        nodepool: system  # schedule on the system (non-GPU) node pool
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: voltedge-web
+  namespace: voltedge
+spec:
+  type: ClusterIP
+  selector:
+    app: voltedge-web
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+      name: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: voltedge-web
+  namespace: voltedge
+  annotations:
+    kubernetes.io/ingress.class: webapprouting.kubernetes.azure.com  # AKS managed add-on
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+    - hosts:
+        - shop.voltedge.example.com
+      secretName: voltedge-tls
+  rules:
+    - host: shop.voltedge.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: voltedge-web
+                port:
+                  number: 80
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: voltedge-web
+  namespace: voltedge
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: voltedge-web
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

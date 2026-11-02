@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+server/node_modules/
+
+# Build output
+dist/
+build/
+*.tsbuildinfo
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Database
+*.sqlite
+*.db
+
+# IDE / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Screenshots bulk (646 file, tidak perlu di-repo)
+public/img/screenshots/
+
+# Temp test files
+server/db/_*.mjs
+
+# System recycle bin & misc junk
+$RECYCLE.BIN/
+composer/
+*.tmp
+
+# Non-project folders (printer drivers, adjustment programs, dev tools)
+Adjustment Program/
+Blueprint_Printer_Driver/
+dev/
+
+# CodeBuddy internal data
+.codebuddy/

@@ -1,0 +1,27 @@
+{
+  "name": "rhansoft-store-backend",
+  "version": "1.0.0",
+  "description": "Rhansoft Store — Express + PostgreSQL + Midtrans backend",
+  "type": "module",
+  "main": "index.mjs",
+  "scripts": {
+    "start": "node index.mjs",
+    "dev": "node --watch index.mjs",
+    "seed": "node db/seed.mjs",
+    "migrate": "psql -h localhost -p 5432 -U postgres -d rhansoft_store -f db/schema.sql"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1156.0",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2",
+    "google-auth-library": "^11.3.1",
+    "jsonwebtoken": "^9.0.3",
+    "midtrans-client": "^1.4.2",
+    "multer": "^2.5.0",
+    "nodemailer": "^10.2.1",
+    "pg": "^8.13.1",
+    "sharp": "^0.35.5"
+  }
+}
