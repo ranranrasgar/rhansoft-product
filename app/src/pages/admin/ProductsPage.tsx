@@ -1,3 +1,4 @@
+import { authHeaders } from "@/lib/auth"
 import { useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
@@ -483,7 +484,7 @@ export function ProductsPage() {
           }
       const res = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify(body),
       })
       if (!res.ok) {
@@ -503,7 +504,7 @@ export function ProductsPage() {
   const handleCatDelete = async (id: string, name: string) => {
     if (!confirm(`Hapus kategori "${name}"?`)) return
     try {
-      const res = await fetch(`/api/categories/${id}`, { method: "DELETE" })
+      const res = await fetch(`/api/categories/${id}`, { method: "DELETE", headers: authHeaders() })
       if (!res.ok) {
         const err = await res.json()
         throw new Error(err.error || "Gagal hapus")

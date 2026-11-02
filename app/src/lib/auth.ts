@@ -39,6 +39,12 @@ export function clearToken() {
   }
 }
 
+/** Header Authorization untuk panggilan API yang butuh login. */
+export function authHeaders(): Record<string, string> {
+  const token = getToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 // ── API calls ──────────────────────────────────────────────────
 async function authRequest(path: string, body: Record<string, unknown>): Promise<{ user: AuthUser; token: string }> {
   const res = await fetch(`${AUTH_API_BASE}${path}`, {

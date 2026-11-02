@@ -13,7 +13,6 @@ import {
   Phone,
   MapPin,
   Building2,
-  CreditCard,
   Check,
   FileText,
   MessageCircle,
@@ -33,7 +32,6 @@ export function TrialRegisterPage() {
 
   const [form, setForm] = useState({
     fullName: "",
-    nik: "",
     email: "",
     whatsapp: "",
     address: "",
@@ -53,11 +51,7 @@ export function TrialRegisterPage() {
 
   const validate = (): boolean => {
     if (!form.fullName || form.fullName.trim().length < 3) {
-      toast.error("Mohon isi nama lengkap sesuai KTP")
-      return false
-    }
-    if (!form.nik || !/^\d{16}$/.test(form.nik.replace(/\s/g, ""))) {
-      toast.error("NIK harus 16 digit angka sesuai KTP")
+      toast.error("Mohon isi nama lengkap")
       return false
     }
     if (!form.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
@@ -193,20 +187,20 @@ export function TrialRegisterPage() {
         </div>
         <h1 className="text-3xl font-bold tracking-tight">Pendaftaran Uji Coba Gratis</h1>
         <p className="mt-3 text-muted-foreground">
-          Lengkapi data sesuai KTP untuk mengaktifkan akun uji coba. Email & WhatsApp wajib diisi
+          Lengkapi data berikut untuk mengaktifkan akun uji coba. Email & WhatsApp wajib diisi
           agar tim kami dapat mengirimkan surat resmi & konfirmasi.
         </p>
       </div>
 
       {/* Form */}
       <div className="space-y-8 rounded-2xl border border-border bg-card p-8 shadow-sm">
-        {/* Section: Data Identitas (KTP) */}
+        {/* Section: Data Diri */}
         <div>
           <div className="mb-4 flex items-center gap-2">
             <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10">
-              <CreditCard className="size-4 text-primary" />
+              <User className="size-4 text-primary" />
             </div>
-            <h2 className="text-lg font-semibold">Data Identitas (Sesuai KTP)</h2>
+            <h2 className="text-lg font-semibold">Data Diri</h2>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">
@@ -218,31 +212,11 @@ export function TrialRegisterPage() {
                 <Input
                   id="fullName"
                   className="pl-10"
-                  placeholder="Nama lengkap sesuai KTP"
+                  placeholder="Nama lengkap"
                   value={form.fullName}
                   onChange={(e) => update("fullName", e.target.value)}
                 />
               </div>
-            </div>
-            <div className="sm:col-span-2">
-              <Label htmlFor="nik">
-                NIK (Nomor Induk Kependudukan) <span className="text-destructive">*</span>
-              </Label>
-              <div className="relative mt-1.5">
-                <CreditCard className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="nik"
-                  className="pl-10"
-                  placeholder="16 digit angka sesuai KTP"
-                  maxLength={16}
-                  inputMode="numeric"
-                  value={form.nik}
-                  onChange={(e) => update("nik", e.target.value.replace(/\D/g, ""))}
-                />
-              </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                NIK digunakan untuk verifikasi identitas. Data terenkripsi & tidak dibagikan.
-              </p>
             </div>
           </div>
         </div>
@@ -395,7 +369,7 @@ export function TrialRegisterPage() {
               className="mt-1 size-4 rounded border-border"
             />
             <span className="text-sm text-muted-foreground">
-              Saya menyatakan data di atas benar sesuai KTP dan menyetujui{" "}
+              Saya menyatakan data di atas benar dan menyetujui{" "}
               <Link to="/page/syarat-ketentuan" className="font-medium text-primary hover:underline">
                 Syarat & Ketentuan
               </Link>{" "}

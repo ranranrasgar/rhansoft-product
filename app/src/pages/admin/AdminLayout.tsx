@@ -10,6 +10,7 @@ import {
   RotateCcw,
   Settings,
   Mail,
+  Gift,
   LogOut,
   Menu,
   X,
@@ -32,6 +33,7 @@ const navItems: NavItem[] = [
   { to: "/admin/orders", label: "Pesanan", icon: ShoppingCart, roles: ["admin"] },
   { to: "/admin/refunds", label: "Refund", icon: RotateCcw, roles: ["admin"] },
   { to: "/admin/customers", label: "Pelanggan", icon: Mail, roles: ["admin"] },
+  { to: "/admin/trials", label: "Uji Coba Gratis", icon: Gift, roles: ["admin"] },
   { to: "/admin/settings", label: "Pengaturan Sistem", icon: Settings, roles: ["admin"] },
 ]
 

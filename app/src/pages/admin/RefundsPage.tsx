@@ -1,3 +1,4 @@
+import { authHeaders } from "@/lib/auth"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -43,7 +44,7 @@ export function RefundsPage() {
   const [processing, setProcessing] = useState(false)
 
   useEffect(() => {
-    fetch("/api/admin/orders")
+    fetch("/api/admin/orders", { headers: authHeaders() })
       .then((res) => res.json())
       .then((data) => {
         const paid = data.filter(

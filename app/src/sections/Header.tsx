@@ -291,7 +291,7 @@ export function Header() {
             <Button
               size="sm"
               className="ml-2 hidden rounded-full md:inline-flex"
-              onClick={() => navigate("/trial-register")}
+              onClick={() => routerNavigate("/trial-register")}
             >
               Uji coba gratis
             </Button>
