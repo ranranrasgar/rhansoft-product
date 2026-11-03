@@ -29,6 +29,7 @@ const UsersPage = lazy(() => import("@/pages/admin/UsersPage").then((m) => ({ de
 const OrdersPage = lazy(() => import("@/pages/admin/OrdersPage").then((m) => ({ default: m.OrdersPage })))
 const RefundsPage = lazy(() => import("@/pages/admin/RefundsPage").then((m) => ({ default: m.RefundsPage })))
 const CustomersPage = lazy(() => import("@/pages/admin/CustomersPage").then((m) => ({ default: m.CustomersPage })))
+const MyOrdersPage = lazy(() => import("@/pages/MyOrdersPage").then((m) => ({ default: m.MyOrdersPage })))
 const TrialsPage = lazy(() => import("@/pages/admin/TrialsPage").then((m) => ({ default: m.TrialsPage })))
 const SettingsPage = lazy(() => import("@/pages/admin/SettingsPage").then((m) => ({ default: m.SettingsPage })))
 
@@ -61,6 +62,7 @@ function AppLayout() {
                       <Route path="/" element={<HomePage />} />
                       <Route path="/product/:id" element={<ProductDetailPage />} />
                       <Route path="/checkout" element={<CheckoutPage />} />
+                      <Route path="/akun/pesanan" element={<MyOrdersPage />} />
                       <Route path="/admin" element={<AdminLayout />}>
                         <Route index element={<DashboardPage />} />
                         <Route path="products" element={<ProductsPage />} />
