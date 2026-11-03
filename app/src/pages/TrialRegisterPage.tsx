@@ -19,7 +19,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 
-const WHATSAPP_NUMBER = "6281333355871"
+const WHATSAPP_NUMBER = "6281333335871"
 
 
 export function TrialRegisterPage() {

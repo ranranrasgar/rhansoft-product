@@ -464,7 +464,7 @@ export function Header() {
                   <Button
                     variant="secondary"
                     className="mt-4 w-full rounded-full"
-                    onClick={() => window.open("https://wa.me/6281234567890", "_blank")}
+                    onClick={() => window.open("https://wa.me/6281333335871", "_blank")}
                   >
                     Hubungi tim sales
                     <ArrowRight className="size-4" />
