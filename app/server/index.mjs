@@ -29,6 +29,7 @@ import { r2Client, R2_BUCKET, getR2PublicUrl, isR2Configured } from "./lib/r2.mj
 import midtransClient from "midtrans-client"
 import { registerLicenseRoutes, fetchMyLicenseRequests } from "./lib/licenseRoutes.mjs"
 import { loadRegistrationGenerator } from "./lib/registrationGenerator.mjs"
+import { registerPaymentResultRoute } from "./lib/paymentResult.mjs"
 import { notifyAdminLicenseRequest, sendLicenseIssuedEmail } from "./lib/email.mjs"
 import { pool, query, queryAll, queryOne, testConnection } from "./db/pool.mjs"
 import {
@@ -916,6 +917,9 @@ app.get("/api/transaction-status/:orderId", async (req, res) => {
     res.status(500).json({ error: error.message })
   }
 })
+
+// Status pembayaran untuk halaman tujuan pengalihan Midtrans (dipakai juga oleh website lain di akun yang sama)
+registerPaymentResultRoute(app, { snap, queryOne })
 
 // ── Midtrans Webhook (payment notification) ────────────────────
 const handleWebhook = async (req, res) => {
