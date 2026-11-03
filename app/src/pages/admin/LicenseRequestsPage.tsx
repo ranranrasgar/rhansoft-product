@@ -123,9 +123,10 @@ export function LicenseRequestsPage() {
     }
   }, [tab])
 
+  // Muat ulang saat kembali dari tab klaim: persetujuan klaim menambah permintaan baru
   useEffect(() => {
-    load()
-  }, [load])
+    if (section === "requests") load()
+  }, [load, section])
 
   const send = async (id: number, action: "issue" | "reject", body: object, okMessage: string) => {
     setBusy(id)
