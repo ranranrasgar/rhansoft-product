@@ -152,7 +152,10 @@ export function MyOrdersPage() {
           </div>
         ) : (
           orders.map((o) => {
-            const st = STATUS[o.transaction_status] ?? { label: o.transaction_status, variant: "outline" as const }
+            const legacy = o.payment_type === "legacy"
+            const st = legacy
+              ? { label: "Pelanggan lama", variant: "default" as const }
+              : STATUS[o.transaction_status] ?? { label: o.transaction_status, variant: "outline" as const }
             const paid = isPaid(o.transaction_status)
             const working = busy === o.order_id
             const retryable = ["cancel", "expire", "deny", "failure"].includes(o.transaction_status)
@@ -181,7 +184,7 @@ export function MyOrdersPage() {
                         <span className="font-medium">
                           {it.product_name} <span className="text-muted-foreground">×{it.quantity}</span>
                         </span>
-                        <span>{formatPrice(it.price * it.quantity)}</span>
+                        {!legacy && <span>{formatPrice(it.price * it.quantity)}</span>}
                       </div>
                       {paid && it.download_links.length > 0 && (
                         <div className="mt-2 flex flex-wrap gap-2">
@@ -219,9 +222,13 @@ export function MyOrdersPage() {
                 </ul>
 
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
-                  <p className="text-sm">
-                    Total <span className="text-base font-bold">{formatPrice(o.total_amount)}</span>
-                  </p>
+                  {legacy ? (
+                    <p className="text-sm text-muted-foreground">Pembelian sebelum toko online</p>
+                  ) : (
+                    <p className="text-sm">
+                      Total <span className="text-base font-bold">{formatPrice(o.total_amount)}</span>
+                    </p>
+                  )}
                   <div className="flex flex-wrap gap-2">
                     {o.transaction_status === "pending" && (
                       <>
