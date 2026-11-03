@@ -27,6 +27,8 @@ import sharp from "sharp"
 import { PutObjectCommand } from "@aws-sdk/client-s3"
 import { r2Client, R2_BUCKET, getR2PublicUrl, isR2Configured } from "./lib/r2.mjs"
 import midtransClient from "midtrans-client"
+import { registerLicenseRoutes, fetchMyLicenseRequests } from "./lib/licenseRoutes.mjs"
+import { notifyAdminLicenseRequest } from "./lib/email.mjs"
 import { pool, query, queryAll, queryOne, testConnection } from "./db/pool.mjs"
 import {
   registerUser,
@@ -1418,7 +1420,7 @@ app.get("/api/my/orders", authMiddleware(), async (req, res) => {
       [req.user.id]
     )
     const items = await queryAll(
-      `SELECT o.order_id, oi.product_id, oi.product_name, oi.price, oi.quantity,
+      `SELECT o.order_id, oi.id AS order_item_id, oi.product_id, oi.product_name, oi.price, oi.quantity,
               p.download_links, p.install_tutorial
        FROM order_items oi
        JOIN orders o ON oi.order_id = o.id
@@ -1427,6 +1429,7 @@ app.get("/api/my/orders", authMiddleware(), async (req, res) => {
        ORDER BY oi.id`,
       [req.user.id]
     )
+    const licenseRequests = await fetchMyLicenseRequests(queryAll, req.user.id)
     res.json(
       orders.map((o) => {
         const paid = isPaidStatus(o.transaction_status)
@@ -1435,6 +1438,8 @@ app.get("/api/my/orders", authMiddleware(), async (req, res) => {
           items: items
             .filter((i) => i.order_id === o.order_id)
             .map((i) => ({
+              id: i.order_item_id,
+              license_requests: licenseRequests[i.order_item_id] || [],
               product_id: i.product_id,
               product_name: i.product_name,
               price: i.price,
@@ -1451,6 +1456,8 @@ app.get("/api/my/orders", authMiddleware(), async (req, res) => {
     res.status(500).json({ error: "Gagal memuat pesanan" })
   }
 })
+
+registerLicenseRoutes(app, { authMiddleware, queryOne, queryAll, pool, notifyAdminLicenseRequest })
 
 // Token pembayaran untuk melanjutkan pesanan yang belum dibayar
 app.post("/api/my/orders/:orderId/pay", authMiddleware(), async (req, res) => {

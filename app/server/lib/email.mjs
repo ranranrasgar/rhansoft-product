@@ -555,3 +555,16 @@ export async function sendTrialRegistrationEmail(reg) {
   return info
 }
 
+
+// ── Pemberitahuan ke admin: ada permintaan nomor registrasi baru ─
+// Opsional: hanya terkirim bila LICENSE_NOTIFY_EMAIL diisi.
+export async function notifyAdminLicenseRequest({ customerName, productName, orderId }) {
+  const to = process.env.LICENSE_NOTIFY_EMAIL
+  if (!to) return
+  await transporter.sendMail({
+    from: `"${COMPANY.name}" <${COMPANY.email}>`,
+    to,
+    subject: `Permintaan nomor registrasi baru — ${productName}`,
+    text: `${customerName} meminta nomor registrasi untuk ${productName} (pesanan ${orderId}).\nBuka menu Registrasi Lisensi di panel admin untuk menerbitkannya.`,
+  })
+}
