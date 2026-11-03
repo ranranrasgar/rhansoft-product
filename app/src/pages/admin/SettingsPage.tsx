@@ -15,6 +15,8 @@ import {
   Save,
   Truck,
   Loader2,
+  CheckCircle2,
+  AlertTriangle,
 } from "lucide-react"
 import { toast } from "sonner"
 import { authHeaders } from "@/lib/auth"
@@ -39,7 +41,7 @@ function SettingsSection({
         <CardTitle className="flex items-center gap-2 text-base">
           <Icon className="size-5" />
           {title}
-          {inactive && <Badge variant="outline">Belum aktif</Badge>}
+          {inactive && <Badge variant="outline">Belum bisa diubah</Badge>}
         </CardTitle>
         <p className="text-sm text-muted-foreground">{description}</p>
       </CardHeader>
@@ -234,7 +236,38 @@ function ShippingSection() {
   )
 }
 
+type IntegrationStatus = {
+  midtrans: { configured: boolean; environment: "production" | "sandbox" }
+  email: { configured: boolean; host?: string; port?: number; sender?: string }
+  storage: { configured: boolean; bucket?: string }
+}
+
+/** Baris status integrasi: hijau bila sudah diisi di .env server, kuning bila belum. */
+function StatusLine({ ok, okText, missingText }: { ok: boolean; okText: string; missingText: string }) {
+  return (
+    <p className={`flex items-center gap-2 text-sm font-medium ${ok ? "text-emerald-600" : "text-amber-600"}`}>
+      {ok ? <CheckCircle2 className="size-4" /> : <AlertTriangle className="size-4" />}
+      {ok ? okText : missingText}
+    </p>
+  )
+}
+
 export function SettingsPage() {
+  const [status, setStatus] = useState<IntegrationStatus | null>(null)
+  const [statusError, setStatusError] = useState(false)
+
+  useEffect(() => {
+    fetch("/api/admin/settings/integrations", { headers: authHeaders() })
+      .then(async (res) => {
+        if (!res.ok) throw new Error()
+        setStatus(await res.json())
+      })
+      .catch(() => setStatusError(true))
+  }, [])
+
+  const pending = !status && !statusError ? <Loader2 className="size-4 animate-spin text-muted-foreground" /> : null
+  const unknown = statusError ? <p className="text-sm text-muted-foreground">Status tidak bisa dimuat.</p> : null
+
   return (
     <div className="space-y-6">
       <div>
@@ -243,13 +276,63 @@ export function SettingsPage() {
           Pengaturan Sistem
         </h1>
         <p className="text-sm text-muted-foreground">
-          Konfigurasi global aplikasi dan integrasi. Bagian berlabel "Belum aktif" belum tersambung ke server.
+          Konfigurasi global aplikasi dan integrasi. Kunci Midtrans, email, dan penyimpanan diatur di .env server;
+          di sini ditampilkan statusnya.
         </p>
       </div>
 
       <ShippingSection />
 
-      {/* Bagian di bawah ini belum tersambung ke server: ditampilkan sebagai informasi saja */}
+      <SettingsSection
+        icon={CreditCard}
+        title="Payment Gateway (Midtrans)"
+        description="Kunci dan environment diatur lewat MIDTRANS_ENV dan kunci Midtrans di .env server"
+      >
+        {pending ?? unknown ?? (
+          <StatusLine
+            ok={status!.midtrans.configured}
+            okText={`Aktif — ${status!.midtrans.environment === "production" ? "Production" : "Sandbox (uji coba)"}`}
+            missingText={`Kunci Midtrans ${status!.midtrans.environment} belum diisi di .env server`}
+          />
+        )}
+        <Separator />
+        <div className="flex items-center justify-between opacity-70">
+          <div>
+            <p className="flex items-center gap-2 text-sm font-medium">
+              Mode Maintenance <Badge variant="outline">Belum tersedia</Badge>
+            </p>
+            <p className="text-xs text-muted-foreground">Nonaktifkan transaksi sementara</p>
+          </div>
+          <Switch checked={false} disabled />
+        </div>
+      </SettingsSection>
+
+      <SettingsSection icon={Mail} title="Email" description="Pengiriman email lisensi dan notifikasi, diatur MAIL_* di .env server">
+        {pending ?? unknown ?? (
+          <>
+            <StatusLine ok={status!.email.configured} okText="Terkonfigurasi" missingText="Belum dikonfigurasi — email tidak terkirim" />
+            {status!.email.configured && (
+              <p className="text-xs text-muted-foreground">
+                {status!.email.host}:{status!.email.port} · pengirim {status!.email.sender}
+              </p>
+            )}
+          </>
+        )}
+      </SettingsSection>
+
+      <SettingsSection
+        icon={Database}
+        title="Cloudflare R2 Storage"
+        description="Penyimpanan gambar produk, diatur R2_* di .env server"
+      >
+        {pending ?? unknown ?? (
+          <>
+            <StatusLine ok={status!.storage.configured} okText="Terkonfigurasi" missingText="Belum dikonfigurasi — unggah gambar produk tidak bisa" />
+            {status!.storage.configured && <p className="text-xs text-muted-foreground">Bucket {status!.storage.bucket}</p>}
+          </>
+        )}
+      </SettingsSection>
+
       <SettingsSection icon={Store} title="Informasi Toko" description="Identitas dan URL toko Anda" inactive>
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="flex flex-col gap-1.5">
@@ -260,51 +343,6 @@ export function SettingsPage() {
             <Label htmlFor="storeUrl">URL Toko</Label>
             <Input id="storeUrl" value="https://app.rhantech.com" readOnly />
           </div>
-        </div>
-      </SettingsSection>
-
-      <SettingsSection
-        icon={CreditCard}
-        title="Payment Gateway (Midtrans)"
-        description="Environment yang dipakai ditentukan MIDTRANS_ENV di .env server"
-        inactive
-      >
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium">Mode Maintenance</p>
-            <p className="text-xs text-muted-foreground">Nonaktifkan transaksi sementara</p>
-          </div>
-          <Switch checked={false} />
-        </div>
-      </SettingsSection>
-
-      <SettingsSection
-        icon={Mail}
-        title="Email Konfigurasi"
-        description="Pengaturan SMTP diatur di .env server"
-        inactive
-      >
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-1.5">
-            <Label>SMTP Host</Label>
-            <Input value="smtp.gmail.com" readOnly />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label>SMTP Port</Label>
-            <Input value="587" readOnly />
-          </div>
-        </div>
-      </SettingsSection>
-
-      <SettingsSection
-        icon={Database}
-        title="Cloudflare R2 Storage"
-        description="Penyimpanan gambar produk, diatur di .env server"
-        inactive
-      >
-        <div className="flex flex-col gap-1.5 sm:max-w-sm">
-          <Label>Bucket Name</Label>
-          <Input value="rhansoft-product" readOnly />
         </div>
       </SettingsSection>
     </div>
