@@ -28,7 +28,7 @@ import { PutObjectCommand } from "@aws-sdk/client-s3"
 import { r2Client, R2_BUCKET, getR2PublicUrl, isR2Configured } from "./lib/r2.mjs"
 import midtransClient from "midtrans-client"
 import { registerLicenseRoutes, fetchMyLicenseRequests } from "./lib/licenseRoutes.mjs"
-import { notifyAdminLicenseRequest } from "./lib/email.mjs"
+import { notifyAdminLicenseRequest, sendLicenseIssuedEmail } from "./lib/email.mjs"
 import { pool, query, queryAll, queryOne, testConnection } from "./db/pool.mjs"
 import {
   registerUser,
@@ -1457,7 +1457,7 @@ app.get("/api/my/orders", authMiddleware(), async (req, res) => {
   }
 })
 
-registerLicenseRoutes(app, { authMiddleware, queryOne, queryAll, pool, notifyAdminLicenseRequest })
+registerLicenseRoutes(app, { authMiddleware, queryOne, queryAll, pool, notifyAdminLicenseRequest, sendLicenseIssuedEmail })
 
 // Token pembayaran untuk melanjutkan pesanan yang belum dibayar
 app.post("/api/my/orders/:orderId/pay", authMiddleware(), async (req, res) => {

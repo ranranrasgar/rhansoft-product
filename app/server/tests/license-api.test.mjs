@@ -10,6 +10,8 @@ import { createUser, createOrderItem, cleanupFixtures, closePool } from "./fixtu
 let server
 let base
 const notices = []
+const issuedMails = []
+let failEmail = false
 
 before(async () => {
   await cleanupFixtures()
@@ -22,6 +24,10 @@ before(async () => {
     pool,
     notifyAdminLicenseRequest: async (info) => {
       notices.push(info)
+    },
+    sendLicenseIssuedEmail: async (info) => {
+      if (failEmail) throw new Error("smtp down")
+      issuedMails.push(info)
     },
   })
   await new Promise((resolve) => {
@@ -150,4 +156,126 @@ test("admin diberi tahu satu kali per permintaan baru", async () => {
   assert.equal(notices.length, before + 1)
   assert.equal(notices.at(-1).orderId, orderId)
   assert.equal(notices.at(-1).productName, "Produk Uji")
+})
+
+// ── Admin ─────────────────────────────────────────────────────
+const api = (method, path, token, body) =>
+  fetch(`${base}${path}`, {
+    method,
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+
+/** Pelanggan + pesanan lunas + satu permintaan pending; mengembalikan id permintaan. */
+async function pendingRequest({ quantity = 1, code = "ADM1-0000-0001" } = {}) {
+  const user = await createUser()
+  const { orderId, orderItemId } = await createOrderItem({ userId: user.id, quantity })
+  const res = await post(orderItemId, user.token, { license_code: code })
+  return { user, orderId, orderItemId, id: (await res.json()).id }
+}
+
+test("pelanggan biasa ditolak (403) di semua endpoint admin", async () => {
+  const user = await createUser()
+  const { id } = await pendingRequest()
+  assert.equal((await api("GET", "/api/admin/license-requests", user.token)).status, 403)
+  assert.equal((await api("PUT", `/api/admin/license-requests/${id}/issue`, user.token, { registration_number: "TEST-1234" })).status, 403)
+  assert.equal((await api("PUT", `/api/admin/license-requests/${id}/reject`, user.token, { note: "x" })).status, 403)
+})
+
+test("daftar admin menampilkan permintaan pending beserta pending_count", async () => {
+  const admin = await createUser({ role: "admin" })
+  const { id } = await pendingRequest({ code: "LIST-0000-0001" })
+  const res = await api("GET", "/api/admin/license-requests?status=pending", admin.token)
+  assert.equal(res.status, 200)
+  const body = await res.json()
+  const row = body.items.find((r) => r.id === id)
+  assert.equal(row.license_code, "LIST-0000-0001")
+  assert.equal(row.product_name, "Produk Uji")
+  assert.equal(row.order_status, "settlement")
+  assert.ok(body.pending_count >= 1)
+  assert.equal((await api("GET", "/api/admin/license-requests?status=bogus", admin.token)).status, 400)
+})
+
+test("terbitkan: nomor huruf kecil disimpan huruf besar, pelanggan melihatnya, email terkirim sekali", async () => {
+  const admin = await createUser({ role: "admin" })
+  const { user, orderItemId, id } = await pendingRequest({ code: "ISSU-0000-0001" })
+  const mails = issuedMails.length
+  const res = await api("PUT", `/api/admin/license-requests/${id}/issue`, admin.token, { registration_number: " test-1234-abcd " })
+  assert.equal(res.status, 200)
+  const mine = (await requestsOf(user.id, orderItemId))[0]
+  assert.equal(mine.status, "issued")
+  assert.equal(mine.registration_number, "TEST-1234-ABCD")
+  const row = await queryOne(`SELECT issued_by, issued_at FROM license_requests WHERE id = $1`, [id])
+  assert.equal(row.issued_by, admin.id)
+  assert.ok(row.issued_at)
+  assert.equal(issuedMails.length, mails + 1)
+  assert.equal(issuedMails.at(-1).registrationNumber, "TEST-1234-ABCD")
+})
+
+test("nomor registrasi tidak sah ditolak (400)", async () => {
+  const admin = await createUser({ role: "admin" })
+  const { id } = await pendingRequest({ code: "BADN-0000-0001" })
+  assert.equal((await api("PUT", `/api/admin/license-requests/${id}/issue`, admin.token, { registration_number: "AB" })).status, 400)
+  assert.equal((await api("PUT", `/api/admin/license-requests/${id}/issue`, admin.token, { registration_number: "A_B-1234" })).status, 400)
+  assert.equal((await api("PUT", `/api/admin/license-requests/${id}/issue`, admin.token, {})).status, 400)
+})
+
+test("menerbitkan ulang yang sudah terbit boleh (koreksi) dan mengganti nomor", async () => {
+  const admin = await createUser({ role: "admin" })
+  const { user, orderItemId, id } = await pendingRequest({ code: "REIS-0000-0001" })
+  await api("PUT", `/api/admin/license-requests/${id}/issue`, admin.token, { registration_number: "OLDN-0001" })
+  assert.equal((await api("PUT", `/api/admin/license-requests/${id}/issue`, admin.token, { registration_number: "NEWN-0002" })).status, 200)
+  assert.equal((await requestsOf(user.id, orderItemId))[0].registration_number, "NEWN-0002")
+})
+
+test("klik Terbitkan dua kali bersamaan tidak merusak data", async () => {
+  const admin = await createUser({ role: "admin" })
+  const { user, orderItemId, id } = await pendingRequest({ code: "DBLC-0000-0001" })
+  const [a, b] = await Promise.all([
+    api("PUT", `/api/admin/license-requests/${id}/issue`, admin.token, { registration_number: "SAME-0001" }),
+    api("PUT", `/api/admin/license-requests/${id}/issue`, admin.token, { registration_number: "SAME-0001" }),
+  ])
+  assert.ok([a.status, b.status].every((s) => s === 200 || s === 409))
+  const list = await requestsOf(user.id, orderItemId)
+  assert.equal(list.length, 1)
+  assert.equal(list[0].status, "issued")
+  assert.equal(list[0].registration_number, "SAME-0001")
+})
+
+test("pesanan yang di-refund tidak bisa diterbitkan (409)", async () => {
+  const admin = await createUser({ role: "admin" })
+  const { orderId, id } = await pendingRequest({ code: "RFND-0000-0001" })
+  await query(`UPDATE orders SET transaction_status = 'refund' WHERE order_id = $1`, [orderId])
+  assert.equal((await api("PUT", `/api/admin/license-requests/${id}/issue`, admin.token, { registration_number: "TEST-1234" })).status, 409)
+})
+
+test("tolak: alasan wajib, pelanggan melihat alasan, tidak bisa ditolak dua kali atau diterbitkan setelahnya", async () => {
+  const admin = await createUser({ role: "admin" })
+  const { user, orderItemId, id } = await pendingRequest({ code: "REJT-0000-0001" })
+  assert.equal((await api("PUT", `/api/admin/license-requests/${id}/reject`, admin.token, {})).status, 400)
+  assert.equal((await api("PUT", `/api/admin/license-requests/${id}/reject`, admin.token, { note: "   " })).status, 400)
+  assert.equal((await api("PUT", `/api/admin/license-requests/${id}/reject`, admin.token, { note: "Kode salah ketik" })).status, 200)
+  const mine = (await requestsOf(user.id, orderItemId))[0]
+  assert.equal(mine.status, "rejected")
+  assert.equal(mine.admin_note, "Kode salah ketik")
+  assert.equal((await api("PUT", `/api/admin/license-requests/${id}/reject`, admin.token, { note: "lagi" })).status, 409)
+  assert.equal((await api("PUT", `/api/admin/license-requests/${id}/issue`, admin.token, { registration_number: "TEST-1234" })).status, 409)
+})
+
+test("id yang tidak ada mendapat 404", async () => {
+  const admin = await createUser({ role: "admin" })
+  assert.equal((await api("PUT", "/api/admin/license-requests/999999999/issue", admin.token, { registration_number: "TEST-1234" })).status, 404)
+  assert.equal((await api("PUT", "/api/admin/license-requests/999999999/reject", admin.token, { note: "x" })).status, 404)
+})
+
+test("email gagal tidak membatalkan penerbitan", async () => {
+  const admin = await createUser({ role: "admin" })
+  const { user, orderItemId, id } = await pendingRequest({ code: "MAIL-0000-0001" })
+  failEmail = true
+  try {
+    assert.equal((await api("PUT", `/api/admin/license-requests/${id}/issue`, admin.token, { registration_number: "TEST-5678" })).status, 200)
+  } finally {
+    failEmail = false
+  }
+  assert.equal((await requestsOf(user.id, orderItemId))[0].status, "issued")
 })
