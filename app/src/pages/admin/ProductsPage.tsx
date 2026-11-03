@@ -490,11 +490,15 @@ export function ProductsPage() {
     }
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     const product = products.find((p) => p.id === id)
-    deleteProduct(id)
-    toast.success("Produk dihapus", { description: product?.name })
-    setDeleteId(null)
+    try {
+      await deleteProduct(id)
+      toast.success("Produk dihapus", { description: product?.name })
+      setDeleteId(null)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menghapus produk")
+    }
   }
 
   const handleReset = () => {
@@ -825,7 +829,8 @@ export function ProductsPage() {
           <DialogHeader>
             <DialogTitle>Hapus produk?</DialogTitle>
             <DialogDescription>
-              Produk akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.
+              Produk hilang dari katalog dan menu. Pesanan, lisensi, dan unduhan pelanggan yang sudah membeli tetap
+              tersimpan.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">

@@ -4,7 +4,7 @@ import assert from "node:assert/strict"
 import express from "express"
 import { pool, query, queryAll, queryOne } from "../db/pool.mjs"
 import { authMiddleware } from "../lib/auth.mjs"
-import { registerProductCreateRoute, productIdFromName } from "../lib/productRoutes.mjs"
+import { registerProductWriteRoutes, productIdFromName } from "../lib/productRoutes.mjs"
 import { createUser, cleanupFixtures, closePool } from "./fixtures.mjs"
 
 let server
@@ -20,7 +20,7 @@ before(async () => {
   user = await createUser()
   const app = express()
   app.use(express.json())
-  registerProductCreateRoute(app, { authMiddleware, pool })
+  registerProductWriteRoutes(app, { authMiddleware, pool })
   await new Promise((resolve) => {
     server = app.listen(0, "127.0.0.1", resolve)
   })
@@ -60,6 +60,7 @@ const product = (over = {}) => ({
   installTutorial: "1. Jalankan installer",
   platformIds: ["desktop", "web"],
   featured: true,
+  benefits: ["  Hemat waktu  ", "", "Laporan real-time"],
   ...over,
 })
 
@@ -90,6 +91,7 @@ test("membuat produk lengkap: kategori dari nama, spesifikasi, highlight, platfo
   assert.equal(row.badge, "Best Seller")
   assert.equal(row.featured, true)
   assert.equal(row.is_active, true)
+  assert.deepEqual(row.benefits, ["Hemat waktu", "Laporan real-time"])
   assert.deepEqual(row.gallery, ["https://cdn.example.test/g1.png"])
   assert.equal(row.download_links[0].url, "https://drive.example.test/x")
   const specs = await queryAll(`SELECT label, value FROM product_specs WHERE product_id = $1`, [id])
@@ -108,4 +110,25 @@ test("isian wajib dan nilai tidak sah ditolak 400", async () => {
   assert.equal((await post(editor.token, product({ category: "Tidak Ada" }))).status, 400)
   assert.equal((await post(editor.token, product({ platformIds: [] }))).status, 400)
   assert.equal((await post(editor.token, product({ platformIds: ["tidak-ada"] }))).status, 400)
+})
+
+const del = (token, id) =>
+  fetch(`${base}/api/products/${id}`, {
+    method: "DELETE",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+
+test("hapus produk = disembunyikan (is_active false), data dan relasinya tetap ada", async () => {
+  const { id } = await (await post(editor.token, product())).json()
+  assert.equal((await del(null, id)).status, 401)
+  assert.equal((await del(user.token, id)).status, 403)
+  const res = await del(editor.token, id)
+  assert.equal(res.status, 200)
+  const row = await queryOne(`SELECT is_active FROM products WHERE id = $1`, [id])
+  assert.equal(row.is_active, false)
+  const specs = await queryAll(`SELECT 1 FROM product_specs WHERE product_id = $1`, [id])
+  assert.equal(specs.length, 1)
+  // menghapus lagi tetap 404 agar admin tahu produknya sudah tidak ada di katalog
+  assert.equal((await del(editor.token, id)).status, 404)
+  assert.equal((await del(editor.token, "tidak-ada")).status, 404)
 })

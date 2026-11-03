@@ -35,7 +35,7 @@ import { registerPaymentResultRoute } from "./lib/paymentResult.mjs"
 import { notifyAdminLicenseRequest, sendLicenseIssuedEmail, notifyAdminLegacyClaim } from "./lib/email.mjs"
 import { registerLegacyClaimRoutes } from "./lib/legacyClaimRoutes.mjs"
 import { isLegacyOrder, legacyOrderActionError } from "./lib/legacyClaims.mjs"
-import { registerProductCreateRoute, resolveCategoryId, writeProductRelations } from "./lib/productRoutes.mjs"
+import { registerProductWriteRoutes, resolveCategoryId, writeProductRelations, normalizeBenefits } from "./lib/productRoutes.mjs"
 import { pool, query, queryAll, queryOne, testConnection } from "./db/pool.mjs"
 import {
   registerUser,
@@ -528,6 +528,7 @@ app.get("/api/products", async (req, res) => {
       downloadSize: p.download_size,
       downloadLinks: p.download_links || [],
       installTutorial: p.install_tutorial || "",
+      benefits: p.benefits || [],
       featured: p.featured === true || p.featured === "true" || p.featured === true,
       platforms: p.platforms || [],
     }))
@@ -599,6 +600,7 @@ app.get("/api/products/:id", async (req, res) => {
       downloadSize: p.download_size,
       downloadLinks: p.download_links || [],
       installTutorial: p.install_tutorial || "",
+      benefits: p.benefits || [],
       featured: p.featured === true || p.featured === "true" || p.featured === true,
       platforms: p.platforms || [],
     }
@@ -1079,8 +1081,8 @@ app.get("/api/orders", authMiddleware("admin"), async (req, res) => {
 })
 
 // ── Update product (admin) ───────────────────────────────────────
-// Tambah produk baru (juga dipakai fitur Salin produk)
-registerProductCreateRoute(app, { authMiddleware, pool })
+// Tambah produk (juga Salin produk) dan Hapus (= sembunyikan)
+registerProductWriteRoutes(app, { authMiddleware, pool })
 
 app.put("/api/products/:id", authMiddleware("editor"), async (req, res) => {
   const client = await pool.connect()
@@ -1106,6 +1108,7 @@ app.put("/api/products/:id", authMiddleware("editor"), async (req, res) => {
       gallery,
       featured,
       platformIds,
+      benefits,
     } = req.body
 
     await client.query("BEGIN")
@@ -1133,8 +1136,8 @@ app.put("/api/products/:id", authMiddleware("editor"), async (req, res) => {
         name = $1, price = $2, original_price = $3, description = $4,
         image = $5, badge = $6, version = $7, platform = $8, license = $9,
         download_size = $10, color = $11, download_links = $12, install_tutorial = $13,
-        gallery = $14, featured = $15, category_id = $16, updated_at = NOW()
-       WHERE id = $17`,
+        gallery = $14, featured = $15, category_id = $16, benefits = $17, updated_at = NOW()
+       WHERE id = $18`,
       [
         pick(name, cur.name),
         pick(price, cur.price),
@@ -1152,6 +1155,7 @@ app.put("/api/products/:id", authMiddleware("editor"), async (req, res) => {
         gallery === undefined ? json(cur.gallery) : json(gallery || null),
         featured === undefined ? cur.featured : featured === true || featured === "true",
         categoryId,
+        benefits === undefined ? json(cur.benefits) : json(normalizeBenefits(benefits)),
         id,
       ]
     )
