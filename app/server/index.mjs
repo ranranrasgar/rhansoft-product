@@ -18,7 +18,7 @@
  */
 import crypto from "crypto"
 import { priceOrder, checkClientTotal, midtransAmount } from "./lib/pricing.mjs"
-import { registerSettingsRoutes, loadShippingSettings } from "./lib/settingsRoutes.mjs"
+import { registerSettingsRoutes, loadShippingSettings, loadTaxSettings } from "./lib/settingsRoutes.mjs"
 import path from "path"
 import { fileURLToPath } from "url"
 import express from "express"
@@ -721,7 +721,12 @@ app.post("/api/create-transaction", authMiddleware(), async (req, res) => {
 
     // Harga, ongkir (pengaturan admin) dan item Midtrans dari satu fungsi teruji (lib/pricing.mjs);
     // shipping_cost dari browser diabaikan
-    const priced = priceOrder({ items, settings: await loadShippingSettings(queryOne), province })
+    const priced = priceOrder({
+      items,
+      settings: await loadShippingSettings(queryOne),
+      province,
+      tax: await loadTaxSettings(queryOne),
+    })
     if ("error" in priced) return res.status(400).json({ error: priced.error })
     const { shipping: shippingCost, tax: taxAmount, total: totalAmount, itemDetails } = priced
 

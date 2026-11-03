@@ -1,26 +1,26 @@
 /**
  * Perhitungan total pesanan (satu sumber di server; nilai dari browser selalu diabaikan).
- * Ongkos kirim berasal dari pengaturan admin (lib/shippingSettings.mjs); bawaan 0. PPN hanya atas subtotal.
+ * Ongkos kirim dan pajak berasal dari pengaturan admin (lib/shippingSettings.mjs, lib/taxSettings.mjs).
+ * Ongkir bawaan 0; pajak bawaan PPN 11% dan hanya atas subtotal.
  * Rumus yang sama dipakai di tampilan checkout (src/pages/CheckoutPage.tsx): ubah keduanya bersamaan.
  */
 import { calculateShipping } from "./shippingSettings.mjs"
+import { DEFAULT_TAX, taxAmount } from "./taxSettings.mjs"
 
-const VAT_RATE = 0.11
-
-export function calculateOrderTotals(subtotal, shipping = 0) {
-  const tax = Math.round(subtotal * VAT_RATE)
+export function calculateOrderTotals(subtotal, shipping = 0, taxSettings = DEFAULT_TAX) {
+  const tax = taxAmount(subtotal, taxSettings)
   return { subtotal, shipping, tax, total: subtotal + shipping + tax }
 }
 
 /**
- * Harga lengkap satu pesanan dari item (harga database), pengaturan ongkir, dan provinsi:
+ * Harga lengkap satu pesanan dari item (harga database), pengaturan ongkir, provinsi, dan pengaturan pajak:
  * total + item_details Midtrans (jumlahnya selalu sama dengan total). { error } bila provinsi wajib tapi tidak sah.
  */
-export function priceOrder({ items, settings, province }) {
+export function priceOrder({ items, settings, province, tax = DEFAULT_TAX }) {
   const subtotal = items.reduce((sum, it) => sum + it.price * it.quantity, 0)
   const ship = calculateShipping(settings, province)
   if ("error" in ship) return { error: ship.error }
-  const totals = calculateOrderTotals(subtotal, ship.amount)
+  const totals = calculateOrderTotals(subtotal, ship.amount, tax)
   const itemDetails = [
     ...items.map((it) => ({
       id: it.id,
@@ -34,7 +34,7 @@ export function priceOrder({ items, settings, province }) {
       ? [{ id: "SHIPPING", name: ship.label.slice(0, 50), price: totals.shipping, quantity: 1, brand: "Rhansoft", category: "Shipping" }]
       : []),
     ...(totals.tax > 0
-      ? [{ id: "TAX", name: "PPN 11%", price: totals.tax, quantity: 1, brand: "Rhansoft", category: "Tax" }]
+      ? [{ id: "TAX", name: `${tax.label} ${tax.rate}%`.slice(0, 50), price: totals.tax, quantity: 1, brand: "Rhansoft", category: "Tax" }]
       : []),
   ]
   return { ...totals, shippingLabel: ship.label, itemDetails }
