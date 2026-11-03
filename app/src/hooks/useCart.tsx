@@ -2,6 +2,7 @@ import {
   createContext,
   useContext,
   useState,
+  useEffect,
   useCallback,
   useMemo,
   type ReactNode,
@@ -22,8 +23,29 @@ type CartContextValue = {
 
 const CartContext = createContext<CartContextValue | null>(null)
 
+const CART_KEY = "rhansoft_cart"
+
+function loadCart(): CartItem[] {
+  try {
+    const raw = localStorage.getItem(CART_KEY)
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<CartItem[]>([])
+  // Keranjang disimpan di browser agar tidak hilang saat login atau muat ulang
+  const [items, setItems] = useState<CartItem[]>(loadCart)
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CART_KEY, JSON.stringify(items))
+    } catch {
+      // penyimpanan penuh/diblokir: keranjang tetap jalan di memori
+    }
+  }, [items])
 
   const addItem = useCallback((product: Product) => {
     setItems((prev) => {
