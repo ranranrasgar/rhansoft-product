@@ -4,7 +4,9 @@ import { defineConfig } from "vite"
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: './',
+  // Absolut: situs dilayani dari akar domain. Base relatif ('./') membuat /assets dicari di
+  // /admin/assets, /pembayaran/assets, dst., sehingga halaman bertingkat kosong saat di-refresh.
+  base: '/',
   plugins: [react()],
   resolve: {
     alias: {
