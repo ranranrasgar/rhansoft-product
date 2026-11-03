@@ -645,31 +645,87 @@ app.get("/api/hero-slides", async (req, res) => {
 })
 
 // ── Create Midtrans Transaction ─────────────────────────────────
+const MAX_CART_LINES = 50
+const MAX_ITEM_QUANTITY = 100
+
 app.post("/api/create-transaction", async (req, res) => {
   const client = await pool.connect()
 
   try {
     const {
       order_id,
-      gross_amount,
       customer,
-      items,
-      shipping_cost,
-      tax,
+      items: requestedItems,
       payment_method,
     } = req.body
 
     // Validate
-    if (!order_id || !gross_amount || !customer || !items) {
+    // Catatan: gross_amount, items[].price, shipping_cost, dan tax dari client
+    // sengaja diabaikan — semua nominal dihitung ulang di server dari tabel products.
+    if (!order_id || !customer || !Array.isArray(requestedItems) || requestedItems.length === 0) {
       return res.status(400).json({
         error: "Missing required fields",
-        required: ["order_id", "gross_amount", "customer", "items"],
+        required: ["order_id", "customer", "items"],
       })
+    }
+
+    if (requestedItems.length > MAX_CART_LINES) {
+      return res.status(400).json({ error: "Terlalu banyak item dalam keranjang" })
+    }
+
+    for (const it of requestedItems) {
+      if (!it || typeof it.id !== "string" || !it.id) {
+        return res.status(400).json({ error: "Item tidak valid" })
+      }
+      if (!Number.isInteger(it.quantity) || it.quantity < 1 || it.quantity > MAX_ITEM_QUANTITY) {
+        return res.status(400).json({ error: `Jumlah tidak valid untuk produk ${it.id}` })
+      }
+    }
+
+    // Ambil harga resmi dari database
+    const productIds = [...new Set(requestedItems.map((it) => it.id))]
+    const productRows = await client.query(
+      `SELECT p.id, p.name, p.price, c.name AS category_name
+       FROM products p
+       LEFT JOIN categories c ON c.id = p.category_id
+       WHERE p.id = ANY($1::varchar[]) AND p.is_active = TRUE`,
+      [productIds]
+    )
+    const productMap = new Map(productRows.rows.map((r) => [r.id, r]))
+    const unknownIds = productIds.filter((id) => !productMap.has(id))
+    if (unknownIds.length > 0) {
+      return res.status(400).json({ error: `Produk tidak ditemukan: ${unknownIds.join(", ")}` })
+    }
+
+    const items = requestedItems.map((it) => {
+      const p = productMap.get(it.id)
+      return {
+        id: p.id,
+        name: p.name,
+        price: Number(p.price),
+        quantity: it.quantity,
+        brand: "Rhansoft",
+        category: p.category_name || "Software",
+      }
+    })
+
+    const subtotal = items.reduce((sum, it) => sum + it.price * it.quantity, 0)
+    // Harus sama dengan CheckoutPage.tsx: gratis ongkir mulai Rp 1.000.000, selain itu Rp 25.000
+    const shippingCost = subtotal >= 1000000 ? 0 : 25000
+    const taxAmount = Math.round(subtotal * 0.11)
+    const totalAmount = subtotal + shippingCost + taxAmount
+
+    if (Number(req.body.gross_amount) !== totalAmount) {
+      console.warn(
+        `⚠️  gross_amount dari client (${req.body.gross_amount}) berbeda dengan hitungan server (${totalAmount}) untuk order ${order_id}`
+      )
     }
 
     if (payment_method && ENABLED_PAYMENT_METHODS.length && !ENABLED_PAYMENT_METHODS.includes(payment_method)) {
       return res.status(400).json({ error: "Metode pembayaran ini belum tersedia" })
     }
+
+    await client.query("BEGIN")
 
     // 1. Insert or find customer
     let customerRow = await client.query(
@@ -699,16 +755,12 @@ app.post("/api/create-transaction", async (req, res) => {
     }
 
     // 2. Create order in DB
-    const shippingCost = shipping_cost || 0
-    const taxAmount = tax || 0
-    const totalAmount = Math.round(gross_amount)
-
     const orderRow = await client.query(
       `INSERT INTO orders
         (order_id, customer_id, gross_amount, shipping_cost, tax, total_amount,
          payment_method, transaction_status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending') RETURNING id`,
-      [order_id, customerId, gross_amount, shippingCost, taxAmount, totalAmount, payment_method]
+      [order_id, customerId, totalAmount, shippingCost, taxAmount, totalAmount, payment_method]
     )
 
     const orderIdDb = orderRow.rows[0].id
@@ -724,8 +776,8 @@ app.post("/api/create-transaction", async (req, res) => {
           item.name,
           item.price,
           item.quantity,
-          item.brand || "Rhansoft",
-          item.category || "Software",
+          item.brand,
+          item.category,
         ]
       )
     }
@@ -771,10 +823,10 @@ app.post("/api/create-transaction", async (req, res) => {
         ...items.map((item) => ({
           id: item.id,
           name: item.name.length > 50 ? item.name.substring(0, 50) : item.name,
-          price: Math.round(item.price),
+          price: item.price,
           quantity: item.quantity,
-          brand: item.brand || "Rhansoft",
-          category: item.category || "Software",
+          brand: item.brand,
+          category: item.category,
         })),
         ...(shippingCost > 0
           ? [{ id: "SHIPPING", name: "Ongkos Kirim", price: shippingCost, quantity: 1, brand: "Rhansoft", category: "Shipping" }]
