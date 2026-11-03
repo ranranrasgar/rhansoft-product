@@ -569,6 +569,18 @@ export async function notifyAdminLicenseRequest({ customerName, productName, ord
   })
 }
 
+// ── Pemberitahuan ke admin: klaim pelanggan lama baru ────────────
+export async function notifyAdminLegacyClaim({ customerName, productName }) {
+  const to = process.env.LICENSE_NOTIFY_EMAIL
+  if (!to) return
+  await transporter.sendMail({
+    from: `"${COMPANY.name}" <${COMPANY.email}>`,
+    to,
+    subject: `Klaim pelanggan lama — ${productName}`,
+    text: `${customerName} mengirim klaim pelanggan lama untuk ${productName}.\nBuka menu Registrasi Lisensi → Klaim pelanggan lama di panel admin untuk memverifikasinya.`,
+  })
+}
+
 // ── Email ke pelanggan: nomor registrasi lisensi sudah terbit ────
 export async function sendLicenseIssuedEmail({ to, firstName, productName, registrationNumber }) {
   const html = `
