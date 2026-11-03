@@ -173,7 +173,7 @@ export function MobileMenu({ open, onOpenChange }: Props) {
           <button
             onClick={() => {
               onOpenChange(false)
-              navigate("/trial-register")
+              routerNavigate("/trial-register")
             }}
             className="w-full rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
           >
