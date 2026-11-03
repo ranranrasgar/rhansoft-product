@@ -17,6 +17,7 @@
  *   GET  /api/orders                     — list all orders
  */
 import crypto from "crypto"
+import { applyAppendNotification } from "./lib/midtransNotification.mjs"
 import path from "path"
 import { fileURLToPath } from "url"
 import express from "express"
@@ -61,6 +62,12 @@ const snap = new midtransClient.Snap({
   serverKey: SERVER_KEY,
   clientKey: CLIENT_KEY,
 })
+
+// Akun Midtrans dipakai beberapa website: tambahkan alamat webhook toko ini untuk transaksinya sendiri
+// (opsional, lihat MIDTRANS_APPEND_NOTIFICATION_URL di .env.example)
+if (applyAppendNotification(snap, process.env.MIDTRANS_APPEND_NOTIFICATION_URL)) {
+  console.log(`🔔 Notifikasi tambahan per transaksi: ${process.env.MIDTRANS_APPEND_NOTIFICATION_URL}`)
+}
 
 // ── Middleware ──────────────────────────────────────────────────
 app.use(express.json())
