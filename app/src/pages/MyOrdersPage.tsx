@@ -7,8 +7,11 @@ import { toast } from "sonner"
 import { useAuth } from "@/hooks/useAuth"
 import { authHeaders } from "@/lib/auth"
 import { payWithSnap } from "@/lib/midtrans"
+import { LicenseBlock, type LicenseRequestView } from "@/components/LicenseBlock"
 
 type OrderItem = {
+  id: number
+  license_requests: LicenseRequestView[]
   product_id: string
   product_name: string
   price: number
@@ -202,6 +205,14 @@ export function MyOrdersPage() {
                           <summary className="cursor-pointer font-medium text-foreground">Panduan instalasi</summary>
                           <p className="mt-1 whitespace-pre-line">{it.install_tutorial}</p>
                         </details>
+                      )}
+                      {paid && (
+                        <LicenseBlock
+                          orderItemId={it.id}
+                          quantity={it.quantity}
+                          requests={it.license_requests ?? []}
+                          onChanged={load}
+                        />
                       )}
                     </li>
                   ))}
