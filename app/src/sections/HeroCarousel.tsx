@@ -58,7 +58,8 @@ export function HeroCarousel() {
         }}
       />
 
-      <div className="relative mx-auto min-h-[500px] max-w-7xl px-4 py-12 md:min-h-[560px] md:px-6 md:py-20">
+      {/* Ponsel: gambar dan teks bertumpuk (~720px) + ruang tombol di bawah */}
+      <div className="relative mx-auto min-h-[880px] max-w-7xl px-4 py-12 md:min-h-[560px] md:px-6 md:py-20">
         {heroSlides.map((s, i) => {
           const isActive = i === active
           const product = products.find((p) => p.name === s.title)
@@ -198,36 +199,36 @@ export function HeroCarousel() {
           )
         })}
 
-        {/* Controls */}
-        <button
-          onClick={prev}
-          aria-label="Slide sebelumnya"
-          className="absolute left-1 top-1/2 z-20 flex size-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/80 backdrop-blur-md transition hover:bg-white/15 hover:text-white md:left-2"
-        >
-          <ChevronLeft className="size-5" />
-        </button>
-        <button
-          onClick={next}
-          aria-label="Slide berikutnya"
-          className="absolute right-1 top-1/2 z-20 flex size-11 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/80 backdrop-blur-md transition hover:bg-white/15 hover:text-white md:right-2"
-        >
-          <ChevronRight className="size-5" />
-        </button>
-
-        {/* Slide indicators */}
-        <div className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2.5">
-          {heroSlides.map((s, i) => (
-            <button
-              key={s.id}
-              onClick={() => setActive(i)}
-              aria-label={`Ke slide ${i + 1}`}
-              className={`h-1 rounded-full transition-all duration-300 ${
-                i === active
-                  ? "w-10 bg-white"
-                  : "w-2 bg-white/30 hover:bg-white/50"
-              }`}
-            />
-          ))}
+        {/* Kontrol di bawah (panah mengapit penanda slide) agar tidak menutupi teks dan gambar */}
+        <div className="absolute bottom-2 left-1/2 z-20 flex -translate-x-1/2 items-center gap-4">
+          <button
+            onClick={prev}
+            aria-label="Slide sebelumnya"
+            className="flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/80 backdrop-blur-md transition hover:bg-white/15 hover:text-white"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+          <div className="flex items-center gap-2.5">
+            {heroSlides.map((s, i) => (
+              <button
+                key={s.id}
+                onClick={() => setActive(i)}
+                aria-label={`Ke slide ${i + 1}`}
+                className={`h-1 rounded-full transition-all duration-300 ${
+                  i === active
+                    ? "w-10 bg-white"
+                    : "w-2 bg-white/30 hover:bg-white/50"
+                }`}
+              />
+            ))}
+          </div>
+          <button
+            onClick={next}
+            aria-label="Slide berikutnya"
+            className="flex size-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/80 backdrop-blur-md transition hover:bg-white/15 hover:text-white"
+          >
+            <ChevronRight className="size-4" />
+          </button>
         </div>
       </div>
     </section>
