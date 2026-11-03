@@ -28,6 +28,7 @@ import { PutObjectCommand } from "@aws-sdk/client-s3"
 import { r2Client, R2_BUCKET, getR2PublicUrl, isR2Configured } from "./lib/r2.mjs"
 import midtransClient from "midtrans-client"
 import { registerLicenseRoutes, fetchMyLicenseRequests } from "./lib/licenseRoutes.mjs"
+import { loadRegistrationGenerator } from "./lib/registrationGenerator.mjs"
 import { notifyAdminLicenseRequest, sendLicenseIssuedEmail } from "./lib/email.mjs"
 import { pool, query, queryAll, queryOne, testConnection } from "./db/pool.mjs"
 import {
@@ -1457,7 +1458,17 @@ app.get("/api/my/orders", authMiddleware(), async (req, res) => {
   }
 })
 
-registerLicenseRoutes(app, { authMiddleware, queryOne, queryAll, pool, notifyAdminLicenseRequest, sendLicenseIssuedEmail })
+// Generator nomor registrasi: rumus ada di berkas pribadi di luar git (tidak tersedia bila berkasnya tidak ada)
+const registrationGenerator = await loadRegistrationGenerator()
+registerLicenseRoutes(app, {
+  authMiddleware,
+  queryOne,
+  queryAll,
+  pool,
+  notifyAdminLicenseRequest,
+  sendLicenseIssuedEmail,
+  generator: registrationGenerator,
+})
 
 // Token pembayaran untuk melanjutkan pesanan yang belum dibayar
 app.post("/api/my/orders/:orderId/pay", authMiddleware(), async (req, res) => {

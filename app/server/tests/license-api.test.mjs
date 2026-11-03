@@ -12,6 +12,11 @@ let base
 const notices = []
 const issuedMails = []
 let failEmail = false
+const fakeGenerator = {
+  available: true,
+  versions: [{ id: "t", label: "Versi Tes", verified: false }],
+  generate: (code) => [{ id: "t", label: "Versi Tes", verified: false, number: `GEN-${code}` }],
+}
 
 before(async () => {
   await cleanupFixtures()
@@ -25,6 +30,7 @@ before(async () => {
     notifyAdminLicenseRequest: async (info) => {
       notices.push(info)
     },
+    generator: fakeGenerator,
     sendLicenseIssuedEmail: async (info) => {
       if (failEmail) throw new Error("smtp down")
       issuedMails.push(info)
@@ -291,4 +297,57 @@ test("nomor registrasi disembunyikan dari pelanggan bila pesanannya tidak lagi l
   await query(`UPDATE orders SET transaction_status = 'refund' WHERE order_id = $1`, [orderId])
   const after = (await requestsOf(u.id, orderItemId))[0]
   assert.equal("registration_number" in after, false)
+})
+
+// ── Generator nomor registrasi (generator palsu; rumus asli tidak ada di repo) ──
+test("daftar generator: pelanggan biasa 403, admin melihat versi tanpa fungsi", async () => {
+  const user = await createUser()
+  const admin = await createUser({ role: "admin" })
+  assert.equal((await api("GET", "/api/admin/license-generator", user.token)).status, 403)
+  const res = await api("GET", "/api/admin/license-generator", admin.token)
+  assert.equal(res.status, 200)
+  assert.deepEqual(await res.json(), {
+    available: true,
+    versions: [{ id: "t", label: "Versi Tes", verified: false }],
+  })
+})
+
+test("generate: admin mendapat hasil semua versi, dan permintaan tidak berubah", async () => {
+  const admin = await createUser({ role: "admin" })
+  const { id, user, orderItemId } = await pendingRequest({ code: "GENR-0000-0001" })
+  const res = await api("POST", `/api/admin/license-requests/${id}/generate`, admin.token)
+  assert.equal(res.status, 200)
+  assert.deepEqual((await res.json()).results, [
+    { id: "t", label: "Versi Tes", verified: false, number: "GEN-GENR-0000-0001" },
+  ])
+  const mine = (await requestsOf(user.id, orderItemId))[0]
+  assert.equal(mine.status, "pending")
+  assert.equal("registration_number" in mine, false)
+})
+
+test("generate: pelanggan biasa 403, id tidak ada 404", async () => {
+  const user = await createUser()
+  const admin = await createUser({ role: "admin" })
+  const { id } = await pendingRequest({ code: "GENR-0000-0002" })
+  assert.equal((await api("POST", `/api/admin/license-requests/${id}/generate`, user.token)).status, 403)
+  assert.equal((await api("POST", "/api/admin/license-requests/999999999/generate", admin.token)).status, 404)
+})
+
+test("generate: pesanan yang tidak lagi lunas ditolak (409)", async () => {
+  const admin = await createUser({ role: "admin" })
+  const { id, orderId } = await pendingRequest({ code: "GENR-0000-0003" })
+  await query(`UPDATE orders SET transaction_status = 'refund' WHERE order_id = $1`, [orderId])
+  assert.equal((await api("POST", `/api/admin/license-requests/${id}/generate`, admin.token)).status, 409)
+})
+
+test("generate: bila generator tidak terpasang, daftar menyatakan tidak tersedia dan generate 501", async () => {
+  const admin = await createUser({ role: "admin" })
+  const { id } = await pendingRequest({ code: "GENR-0000-0004" })
+  fakeGenerator.available = false
+  try {
+    assert.deepEqual((await (await api("GET", "/api/admin/license-generator", admin.token)).json()).available, false)
+    assert.equal((await api("POST", `/api/admin/license-requests/${id}/generate`, admin.token)).status, 501)
+  } finally {
+    fakeGenerator.available = true
+  }
 })
