@@ -17,6 +17,8 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { useCart } from "@/hooks/useCart"
+import { PROVINCES } from "@/lib/indonesia-provinces"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/hooks/useAuth"
 import {
   loadSnapScript,
@@ -31,6 +33,15 @@ function formatPrice(n: number) {
     currency: "IDR",
     minimumFractionDigits: 0,
   })
+}
+
+type ShippingConfig = {
+  enabled: boolean
+  mode: "flat" | "province"
+  label: string
+  flat_amount: number
+  default_amount: number
+  province_rates: Record<string, number>
 }
 
 type PaymentMethod = "card" | "gopay" | "bank_transfer" | "shopeepay"
@@ -119,11 +130,29 @@ export function CheckoutPage() {
       .catch(() => setEnabledMethods([]))
   }, [])
 
+  // Pengaturan ongkos kirim dari admin (perkiraan tampilan; total resmi dihitung server)
+  const [shippingConfig, setShippingConfig] = useState<ShippingConfig | null>(null)
+  const [province, setProvince] = useState("")
+  useEffect(() => {
+    fetch("/api/shipping-config")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((conf) => setShippingConfig(conf))
+      .catch(() => {})
+  }, [])
+  const needsProvince = Boolean(shippingConfig?.enabled && shippingConfig.mode === "province")
+
   const useMidtransDefault = enabledMethods !== null && enabledMethods.length === 0
   const visiblePaymentOptions = paymentOptions.filter((o) => enabledMethods?.includes(o.id))
 
-  // Software dikirim lewat unduhan dan lisensi: tidak ada ongkos kirim (sama dengan server, lib/pricing.mjs)
-  const shippingCost = 0
+  // Sama dengan server (lib/shippingSettings.mjs): nonaktif 0, flat satu nominal, provinsi tarif atau tarif standar
+  const shippingCost = !shippingConfig?.enabled
+    ? 0
+    : shippingConfig.mode === "flat"
+      ? shippingConfig.flat_amount
+      : province
+        ? (shippingConfig.province_rates[province] ?? shippingConfig.default_amount)
+        : 0
+  const shippingLabel = shippingConfig?.label || "Ongkos Kirim"
   // PPN 11% (Indonesian VAT)
   const tax = Math.round(subtotal * 0.11)
   const total = subtotal + shippingCost + tax
@@ -146,6 +175,10 @@ export function CheckoutPage() {
     }
     if (!shipping.address || !shipping.city || !shipping.postalCode) {
       toast.error("Mohon lengkapi alamat pengiriman")
+      return false
+    }
+    if (needsProvince && !province) {
+      toast.error("Mohon pilih provinsi")
       return false
     }
     return true
@@ -207,6 +240,7 @@ export function CheckoutPage() {
         shipping_cost: shippingCost,
         tax,
         payment_method: useMidtransDefault ? undefined : paymentMethod,
+        province: needsProvince ? province : undefined,
       })
 
       // 4. Open Midtrans Snap payment modal
@@ -372,6 +406,23 @@ export function CheckoutPage() {
                   autoComplete="postal-code"
                 />
               </div>
+              {needsProvince && (
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="province">Provinsi</Label>
+                  <Select value={province} onValueChange={setProvince}>
+                    <SelectTrigger id="province" className="w-full">
+                      <SelectValue placeholder="Pilih provinsi" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROVINCES.map((p) => (
+                        <SelectItem key={p.name} value={p.name}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </div>
 
@@ -481,6 +532,12 @@ export function CheckoutPage() {
                 <span className="text-muted-foreground">Subtotal</span>
                 <span className="font-medium">{formatPrice(subtotal)}</span>
               </div>
+              {shippingCost > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">{shippingLabel}</span>
+                  <span className="font-medium">{formatPrice(shippingCost)}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">PPN (11%)</span>
                 <span className="font-medium">{formatPrice(tax)}</span>
