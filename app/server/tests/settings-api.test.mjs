@@ -5,14 +5,14 @@ import express from "express"
 import { query, queryOne } from "../db/pool.mjs"
 import { authMiddleware } from "../lib/auth.mjs"
 import { DEFAULT_SHIPPING } from "../lib/shippingSettings.mjs"
-import { registerSettingsRoutes, loadShippingSettings } from "../lib/settingsRoutes.mjs"
+import { registerSettingsRoutes, loadShippingSettings, loadTaxSettings } from "../lib/settingsRoutes.mjs"
 import { createUser, cleanupFixtures, closePool } from "./fixtures.mjs"
 
 let server
 let base
 let admin
 let user
-const clear = () => query(`DELETE FROM settings WHERE key = 'shipping'`)
+const clear = () => query(`DELETE FROM settings WHERE key IN ('shipping', 'tax')`)
 
 before(async () => {
   await cleanupFixtures()
@@ -110,4 +110,35 @@ test("status integrasi: hanya admin, berisi midtrans/email/storage tanpa kunci r
     const secret = process.env[key]
     if (secret) assert.equal(raw.includes(secret), false, `${key} bocor`)
   }
+})
+
+test("pajak: bawaan aktif 11% sebelum diatur, publik dan admin sama", async () => {
+  await clear()
+  assert.deepEqual(await loadTaxSettings(queryOne), { enabled: true, rate: 11, label: "PPN" })
+  assert.deepEqual(await (await api("GET", "/api/tax-config")).json(), { enabled: true, rate: 11, label: "PPN" })
+  assert.deepEqual(await (await api("GET", "/api/admin/settings/tax", admin.token)).json(), { enabled: true, rate: 11, label: "PPN" })
+})
+
+test("pajak: hanya admin yang boleh mengubah; nonaktif tersimpan dan dipakai publik", async () => {
+  assert.equal((await api("PUT", "/api/admin/settings/tax", null, { enabled: false, rate: 0 })).status, 401)
+  assert.equal((await api("PUT", "/api/admin/settings/tax", user.token, { enabled: false, rate: 0 })).status, 403)
+  const res = await api("PUT", "/api/admin/settings/tax", admin.token, { enabled: false, rate: 0, label: "PPN" })
+  assert.equal(res.status, 200)
+  assert.deepEqual(await (await api("GET", "/api/tax-config")).json(), { enabled: false, rate: 0, label: "PPN" })
+  assert.deepEqual(await loadTaxSettings(queryOne), { enabled: false, rate: 0, label: "PPN" })
+})
+
+test("pajak: tarif tidak sah ditolak 400 dan nilai lama tetap", async () => {
+  await api("PUT", "/api/admin/settings/tax", admin.token, { enabled: true, rate: 5, label: "PPN" })
+  assert.equal((await api("PUT", "/api/admin/settings/tax", admin.token, { enabled: true, rate: 150 })).status, 400)
+  assert.equal((await loadTaxSettings(queryOne)).rate, 5)
+})
+
+test("pajak: nilai rusak di database memakai bawaan 11%, tidak 500", async () => {
+  await query(
+    `INSERT INTO settings (key, value) VALUES ('tax', '{"enabled": true, "rate": "x"}')
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`
+  )
+  assert.deepEqual(await loadTaxSettings(queryOne), { enabled: true, rate: 11, label: "PPN" })
+  assert.equal((await api("GET", "/api/tax-config")).status, 200)
 })

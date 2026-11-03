@@ -15,6 +15,7 @@ import {
   Save,
   Truck,
   Loader2,
+  Percent,
   CheckCircle2,
   AlertTriangle,
 } from "lucide-react"
@@ -236,6 +237,110 @@ function ShippingSection() {
   )
 }
 
+type TaxSettings = { enabled: boolean; rate: number; label: string }
+
+function TaxSection() {
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [enabled, setEnabled] = useState(true)
+  const [rate, setRate] = useState("11")
+  const [label, setLabel] = useState("PPN")
+
+  const apply = (t: TaxSettings) => {
+    setEnabled(t.enabled)
+    setRate(String(t.rate).replace(".", ","))
+    setLabel(t.label)
+  }
+
+  // Sama dengan ongkir: bila gagal dimuat, form disembunyikan agar nilai awal tidak menimpa pengaturan
+  const load = () => {
+    setLoading(true)
+    setLoadError(false)
+    fetch("/api/admin/settings/tax", { headers: authHeaders() })
+      .then(async (res) => {
+        if (!res.ok) throw new Error()
+        apply(await res.json())
+      })
+      .catch(() => setLoadError(true))
+      .finally(() => setLoading(false))
+  }
+  useEffect(load, [])
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const res = await fetch("/api/admin/settings/tax", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        // Koma desimal ala Indonesia ("1,5") diubah ke titik sebelum dikirim
+        body: JSON.stringify({ enabled, rate: rate.trim() === "" ? 0 : Number(rate.replace(",", ".")), label }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || "Gagal menyimpan")
+      apply(data)
+      toast.success("Pengaturan pajak disimpan")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <SettingsSection
+      icon={Percent}
+      title="Pajak (PPN)"
+      description="Pajak atas subtotal di checkout. Dihitung di server; nonaktif atau 0% berarti tanpa pajak."
+    >
+      {loading ? (
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      ) : loadError ? (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          Gagal memuat pengaturan pajak. Pengaturan tidak bisa diubah sampai berhasil dimuat.
+          <Button size="sm" variant="outline" onClick={load}>
+            Coba lagi
+          </Button>
+        </div>
+      ) : (
+        <>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Kenakan pajak</p>
+              <p className="text-xs text-muted-foreground">Bila nonaktif, baris pajak tidak tampil di checkout</p>
+            </div>
+            <Switch checked={enabled} onCheckedChange={setEnabled} />
+          </div>
+          <Separator />
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="taxRate">Tarif (%)</Label>
+              <Input
+                id="taxRate"
+                inputMode="decimal"
+                value={rate}
+                onChange={(e) => setRate(e.target.value.replace(/[^\d.,]/g, ""))}
+                placeholder="11"
+              />
+              <p className="text-xs text-muted-foreground">0 sampai 100, boleh desimal seperti 1,5</p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="taxLabel">Label di checkout</Label>
+              <Input id="taxLabel" value={label} maxLength={20} onChange={(e) => setLabel(e.target.value)} />
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button onClick={save} disabled={saving} className="rounded-full">
+              {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              Simpan pajak
+            </Button>
+          </div>
+        </>
+      )}
+    </SettingsSection>
+  )
+}
+
 type IntegrationStatus = {
   midtrans: { configured: boolean; environment: "production" | "sandbox" }
   email: { configured: boolean; host?: string; port?: number; sender?: string }
@@ -282,6 +387,8 @@ export function SettingsPage() {
       </div>
 
       <ShippingSection />
+
+      <TaxSection />
 
       <SettingsSection
         icon={CreditCard}

@@ -35,6 +35,8 @@ function formatPrice(n: number) {
   })
 }
 
+type TaxConfig = { enabled: boolean; rate: number; label: string }
+
 type ShippingConfig = {
   enabled: boolean
   mode: "flat" | "province"
@@ -130,19 +132,24 @@ export function CheckoutPage() {
       .catch(() => setEnabledMethods([]))
   }, [])
 
-  // Pengaturan ongkos kirim dari admin (perkiraan tampilan; total resmi dihitung server)
+  // Pengaturan ongkos kirim dan pajak dari admin (perkiraan tampilan; total resmi dihitung server)
   const [shippingConfig, setShippingConfig] = useState<ShippingConfig | null>(null)
+  const [taxConfig, setTaxConfig] = useState<TaxConfig | null>(null)
   const [province, setProvince] = useState("")
   const [shippingConfigError, setShippingConfigError] = useState(false)
-  // Tombol Bayar menunggu konfigurasi ini, agar total yang tampil sama dengan yang ditagih
+  // Tombol Bayar menunggu kedua konfigurasi ini, agar total yang tampil sama dengan yang ditagih
   const loadShippingConfig = () => {
     setShippingConfigError(false)
-    fetch("/api/shipping-config")
-      .then((res) => {
+    const get = (url: string) =>
+      fetch(url).then((res) => {
         if (!res.ok) throw new Error()
         return res.json()
       })
-      .then((conf) => setShippingConfig(conf))
+    Promise.all([get("/api/shipping-config"), get("/api/tax-config")])
+      .then(([shippingConf, taxConf]) => {
+        setShippingConfig(shippingConf)
+        setTaxConfig(taxConf)
+      })
       .catch(() => setShippingConfigError(true))
   }
   useEffect(loadShippingConfig, [])
@@ -160,8 +167,8 @@ export function CheckoutPage() {
         ? (shippingConfig.province_rates[province] ?? shippingConfig.default_amount)
         : 0
   const shippingLabel = shippingConfig?.label || "Ongkos Kirim"
-  // PPN 11% (Indonesian VAT)
-  const tax = Math.round(subtotal * 0.11)
+  // Sama dengan server (lib/taxSettings.mjs): nonaktif atau 0% berarti tanpa pajak; hanya atas subtotal
+  const tax = taxConfig?.enabled && taxConfig.rate ? Math.round((subtotal * taxConfig.rate) / 100) : 0
   const total = subtotal + shippingCost + tax
 
   const update = (field: keyof typeof shipping, value: string) =>
@@ -547,10 +554,14 @@ export function CheckoutPage() {
                   <span className="font-medium">{formatPrice(shippingCost)}</span>
                 </div>
               )}
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">PPN (11%)</span>
-                <span className="font-medium">{formatPrice(tax)}</span>
-              </div>
+              {tax > 0 && taxConfig && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">
+                    {taxConfig.label} ({taxConfig.rate.toLocaleString("id-ID")}%)
+                  </span>
+                  <span className="font-medium">{formatPrice(tax)}</span>
+                </div>
+              )}
             </div>
 
             <Separator className="my-4" />
@@ -562,7 +573,7 @@ export function CheckoutPage() {
 
             {shippingConfigError && (
               <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
-                Gagal memuat ongkos kirim, jadi total belum bisa dipastikan.{" "}
+                Gagal memuat ongkos kirim dan pajak, jadi total belum bisa dipastikan.{" "}
                 <button type="button" className="font-semibold underline" onClick={loadShippingConfig}>
                   Coba lagi
                 </button>
@@ -573,7 +584,7 @@ export function CheckoutPage() {
               size="lg"
               className="mt-6 w-full rounded-full"
               onClick={handlePay}
-              disabled={processing || shippingConfig === null}
+              disabled={processing || shippingConfig === null || taxConfig === null}
             >
               {processing ? (
                 <>
