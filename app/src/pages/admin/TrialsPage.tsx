@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { lazy, Suspense, useState, useEffect, useMemo } from "react"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -7,9 +7,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Gift, Search, Loader2, MessageCircle } from "lucide-react"
+import { Gift, Search, Loader2, MessageCircle, MapPin } from "lucide-react"
 import { toast } from "sonner"
 import { authHeaders } from "@/lib/auth"
+import { matchProvince, normalizeCity } from "@/lib/indonesia-provinces"
+
+const TrialMap = lazy(() => import("@/pages/admin/TrialMap"))
 
 type Trial = {
   id: number
@@ -18,6 +21,8 @@ type Trial = {
   email: string
   whatsapp: string
   company: string | null
+  city: string | null
+  province: string | null
   product_name: string | null
   status: string
   created_at: string
@@ -62,6 +67,28 @@ export function TrialsPage() {
     }
   }
 
+  // Sebaran dari Kota/Provinsi yang diisi pendaftar (tanpa GPS)
+  const spread = useMemo(() => {
+    const byProvince = new Map<string, { name: string; lat: number; lng: number; count: number }>()
+    const byCity = new Map<string, number>()
+    let unknown = 0
+    for (const t of trials) {
+      const prov = matchProvince(t.province, t.city)
+      if (prov) {
+        const cur = byProvince.get(prov.name) ?? { name: prov.name, lat: prov.lat, lng: prov.lng, count: 0 }
+        cur.count += 1
+        byProvince.set(prov.name, cur)
+      } else {
+        unknown += 1
+      }
+      const city = normalizeCity(t.city)
+      if (city) byCity.set(city, (byCity.get(city) ?? 0) + 1)
+    }
+    const provinces = [...byProvince.values()].sort((a, b) => b.count - a.count)
+    const cities = [...byCity.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8)
+    return { provinces, cities, unknown }
+  }, [trials])
+
   const q = search.toLowerCase()
   const filtered = trials.filter(
     (t) =>
@@ -97,6 +124,61 @@ export function TrialsPage() {
           </div>
         ))}
       </div>
+
+      {!loading && trials.length > 0 && (
+        <div className="rounded-xl border border-border bg-card p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <MapPin className="size-4" />
+            <h2 className="font-semibold">Sebaran Pendaftar</h2>
+            <span className="text-xs text-muted-foreground">
+              berdasarkan Kota/Provinsi yang diisi pendaftar
+            </span>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="lg:col-span-2">
+              <Suspense fallback={<div className="h-[360px] animate-pulse rounded-xl bg-muted" />}>
+                <TrialMap points={spread.provinces} />
+              </Suspense>
+            </div>
+            <div className="space-y-5 text-sm">
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Provinsi terbanyak</p>
+                <ul className="space-y-1.5">
+                  {spread.provinces.slice(0, 6).map((p) => (
+                    <li key={p.name} className="flex items-center gap-2">
+                      <span className="w-36 truncate">{p.name}</span>
+                      <span className="h-2 flex-1 rounded-full bg-muted">
+                        <span
+                          className="block h-2 rounded-full bg-primary"
+                          style={{ width: `${(p.count / spread.provinces[0].count) * 100}%` }}
+                        />
+                      </span>
+                      <span className="w-6 text-right font-medium">{p.count}</span>
+                    </li>
+                  ))}
+                  {spread.provinces.length === 0 && <li className="text-muted-foreground">Belum ada data provinsi</li>}
+                </ul>
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase text-muted-foreground">Kota terbanyak</p>
+                <ul className="space-y-1">
+                  {spread.cities.map(([city, n]) => (
+                    <li key={city} className="flex justify-between">
+                      <span className="truncate">{city}</span>
+                      <span className="font-medium">{n}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              {spread.unknown > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  {spread.unknown} pendaftar tidak dikenali provinsinya, tidak tampil di peta.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="relative flex-1">
