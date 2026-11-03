@@ -18,6 +18,8 @@
  */
 import crypto from "crypto"
 import { calculateOrderTotals } from "./lib/pricing.mjs"
+import { registerSettingsRoutes, loadShippingSettings } from "./lib/settingsRoutes.mjs"
+import { calculateShipping } from "./lib/shippingSettings.mjs"
 import path from "path"
 import { fileURLToPath } from "url"
 import express from "express"
@@ -919,6 +921,9 @@ app.get("/api/transaction-status/:orderId", async (req, res) => {
 
 // Status pembayaran untuk halaman tujuan pengalihan Midtrans (dipakai juga oleh website lain di akun yang sama)
 registerPaymentResultRoute(app, { snap, queryOne })
+
+// Pengaturan sistem (ongkos kirim) yang diubah admin
+registerSettingsRoutes(app, { authMiddleware, queryOne })
 
 // ── Midtrans Webhook (payment notification) ────────────────────
 const handleWebhook = async (req, res) => {
