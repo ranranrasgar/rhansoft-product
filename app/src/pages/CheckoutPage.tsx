@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate, Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -89,8 +89,25 @@ export function CheckoutPage() {
   })
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("card")
+  // null = belum dimuat; [] = pilihan default Midtrans (semua metode aktif); isi = daftar terbatas
+  const [enabledMethods, setEnabledMethods] = useState<PaymentMethod[] | null>(null)
   const [processing, setProcessing] = useState(false)
   const [snapReady, setSnapReady] = useState(false)
+
+  // Hanya tampilkan metode yang aktif di server (sesuai channel Midtrans)
+  useEffect(() => {
+    fetch("/api/midtrans-config")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((conf) => {
+        const list: PaymentMethod[] = conf?.paymentMethods ?? []
+        setEnabledMethods(list)
+        if (list.length) setPaymentMethod((cur) => (list.includes(cur) ? cur : list[0]))
+      })
+      .catch(() => setEnabledMethods([]))
+  }, [])
+
+  const useMidtransDefault = enabledMethods !== null && enabledMethods.length === 0
+  const visiblePaymentOptions = paymentOptions.filter((o) => enabledMethods?.includes(o.id))
 
   // Free shipping for orders above Rp 1.000.000, otherwise Rp 25.000
   const shippingCost = subtotal >= 1000000 ? 0 : 25000
@@ -176,7 +193,7 @@ export function CheckoutPage() {
         items: itemDetails,
         shipping_cost: shippingCost,
         tax,
-        payment_method: paymentMethod,
+        payment_method: useMidtransDefault ? undefined : paymentMethod,
       })
 
       // 4. Open Midtrans Snap payment modal
@@ -339,12 +356,19 @@ export function CheckoutPage() {
               Pilih metode pembayaran favorit Anda. Didukung oleh Midtrans.
             </p>
 
+            {useMidtransDefault && (
+              <p className="mt-6 rounded-xl border border-border p-4 text-sm text-muted-foreground">
+                Anda akan memilih metode pembayaran (kartu, e-wallet, transfer bank, dan lainnya)
+                di jendela pembayaran Midtrans setelah menekan tombol Bayar.
+              </p>
+            )}
+
             <RadioGroup
               value={paymentMethod}
               onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}
               className="mt-6 gap-3"
             >
-              {paymentOptions.map((opt) => {
+              {visiblePaymentOptions.map((opt) => {
                 const Icon = opt.icon
                 const isSelected = paymentMethod === opt.id
                 return (
