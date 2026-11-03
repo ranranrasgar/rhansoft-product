@@ -18,7 +18,7 @@ type ProductContextValue = {
   getProductById: (id: string) => Product | undefined
   addProduct: (product: Omit<Product, "id">) => Promise<string>
   updateProduct: (id: string, updates: Partial<Product>) => void
-  deleteProduct: (id: string) => void
+  deleteProduct: (id: string) => Promise<void>
   resetProducts: () => void
   refetch: () => void
 }
@@ -108,7 +108,14 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     []
   )
 
-  const deleteProduct = useCallback((id: string) => {
+  // Server menyembunyikan produk (bukan hapus permanen); baru hilang dari daftar setelah server berhasil
+  const deleteProduct = useCallback(async (id: string) => {
+    const res = await fetch(`/api/products/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error || "Gagal menghapus produk")
     setProducts((prev) => prev.filter((p) => p.id !== id))
   }, [])
 
