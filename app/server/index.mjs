@@ -115,9 +115,23 @@ app.get("/api/health", async (req, res) => {
   }
 })
 
+// ── Metode pembayaran yang ditawarkan di checkout ───────────────
+// Isi ENABLED_PAYMENT_METHODS di .env (pisah koma) sesuai channel yang sudah aktif
+// di dashboard Midtrans. Kosong = checkout tidak memilih metode; popup Midtrans
+// menampilkan semua metode yang aktif (default Midtrans).
+const ALL_PAYMENT_METHODS = ["card", "gopay", "bank_transfer", "shopeepay"]
+const ENABLED_PAYMENT_METHODS = (() => {
+  const list = (process.env.ENABLED_PAYMENT_METHODS || "")
+    .split(",")
+    .map((m) => m.trim())
+    .filter((m) => ALL_PAYMENT_METHODS.includes(m))
+  return list
+})()
+
 // ── Midtrans public config ──────────────────────────────────────
 app.get("/api/midtrans-config", (req, res) => {
   res.json({
+    paymentMethods: ENABLED_PAYMENT_METHODS,
     isProduction: IS_PRODUCTION,
     merchantId: MIDTRANS_MERCHANT_ID,
     clientKey: CLIENT_KEY,
@@ -653,6 +667,10 @@ app.post("/api/create-transaction", async (req, res) => {
       })
     }
 
+    if (payment_method && ENABLED_PAYMENT_METHODS.length && !ENABLED_PAYMENT_METHODS.includes(payment_method)) {
+      return res.status(400).json({ error: "Metode pembayaran ini belum tersedia" })
+    }
+
     // 1. Insert or find customer
     let customerRow = await client.query(
       "SELECT id FROM customers WHERE email = $1 AND phone = $2",
@@ -713,7 +731,8 @@ app.post("/api/create-transaction", async (req, res) => {
     }
 
     // 4. Build Midtrans parameter
-    const enabledPayments = getEnabledPayments(payment_method)
+    // Tanpa pilihan metode: biarkan Midtrans menampilkan semua channel yang aktif
+    const enabledPayments = payment_method ? getEnabledPayments(payment_method) : undefined
 
     // Midtrans requires ISO 3166-1 alpha-3 country_code (3 characters)
     const normalizeCountryCode = (code) => {
