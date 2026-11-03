@@ -30,6 +30,7 @@ const OrdersPage = lazy(() => import("@/pages/admin/OrdersPage").then((m) => ({ 
 const RefundsPage = lazy(() => import("@/pages/admin/RefundsPage").then((m) => ({ default: m.RefundsPage })))
 const CustomersPage = lazy(() => import("@/pages/admin/CustomersPage").then((m) => ({ default: m.CustomersPage })))
 const MyOrdersPage = lazy(() => import("@/pages/MyOrdersPage").then((m) => ({ default: m.MyOrdersPage })))
+const LicenseRequestsPage = lazy(() => import("@/pages/admin/LicenseRequestsPage").then((m) => ({ default: m.LicenseRequestsPage })))
 const TrialsPage = lazy(() => import("@/pages/admin/TrialsPage").then((m) => ({ default: m.TrialsPage })))
 const SettingsPage = lazy(() => import("@/pages/admin/SettingsPage").then((m) => ({ default: m.SettingsPage })))
 
@@ -71,6 +72,7 @@ function AppLayout() {
                         <Route path="refunds" element={<RefundsPage />} />
                         <Route path="customers" element={<CustomersPage />} />
                         <Route path="trials" element={<TrialsPage />} />
+                        <Route path="licenses" element={<LicenseRequestsPage />} />
                         <Route path="settings" element={<SettingsPage />} />
                       </Route>
                       <Route path="/page/:slug" element={<StaticPage />} />

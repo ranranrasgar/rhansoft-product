@@ -8,6 +8,7 @@
     "start": "node index.mjs",
     "dev": "node --watch index.mjs",
     "seed": "node db/seed.mjs",
+    "test": "node --test \"tests/*.test.mjs\"",
     "migrate": "psql -h localhost -p 5432 -U postgres -d rhansoft_store -f db/schema.sql"
   },
   "dependencies": {

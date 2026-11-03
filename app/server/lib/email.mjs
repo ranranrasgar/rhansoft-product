@@ -555,3 +555,36 @@ export async function sendTrialRegistrationEmail(reg) {
   return info
 }
 
+
+// ── Pemberitahuan ke admin: ada permintaan nomor registrasi baru ─
+// Opsional: hanya terkirim bila LICENSE_NOTIFY_EMAIL diisi.
+export async function notifyAdminLicenseRequest({ customerName, productName, orderId }) {
+  const to = process.env.LICENSE_NOTIFY_EMAIL
+  if (!to) return
+  await transporter.sendMail({
+    from: `"${COMPANY.name}" <${COMPANY.email}>`,
+    to,
+    subject: `Permintaan nomor registrasi baru — ${productName}`,
+    text: `${customerName} meminta nomor registrasi untuk ${productName} (pesanan ${orderId}).\nBuka menu Registrasi Lisensi di panel admin untuk menerbitkannya.`,
+  })
+}
+
+// ── Email ke pelanggan: nomor registrasi lisensi sudah terbit ────
+export async function sendLicenseIssuedEmail({ to, firstName, productName, registrationNumber }) {
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:560px;margin:0 auto;color:#0f172a">
+      <h2 style="margin:0 0 4px">${COMPANY.name}</h2>
+      <p style="margin:0 0 20px;color:#64748b;font-size:13px">${COMPANY.tagline}</p>
+      <p>Halo ${firstName},</p>
+      <p>Nomor registrasi untuk <strong>${productName}</strong> sudah terbit:</p>
+      <p style="font-size:20px;font-weight:bold;letter-spacing:1px;background:#f1f5f9;padding:12px 16px;border-radius:8px">${registrationNumber}</p>
+      <p>Masukkan nomor ini pada menu registrasi di program. Nomor juga bisa dilihat kapan saja di halaman <strong>Pesanan Saya</strong>.</p>
+      <p style="color:#64748b;font-size:12px">Nomor ini hanya berlaku untuk komputer yang kode lisensinya Anda kirimkan.</p>
+    </div>`
+  await transporter.sendMail({
+    from: `"${COMPANY.name}" <${COMPANY.email}>`,
+    to,
+    subject: `Nomor registrasi ${productName} sudah terbit`,
+    html,
+  })
+}
