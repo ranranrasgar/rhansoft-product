@@ -32,7 +32,9 @@ import midtransClient from "midtrans-client"
 import { registerLicenseRoutes, fetchMyLicenseRequests } from "./lib/licenseRoutes.mjs"
 import { loadRegistrationGenerator } from "./lib/registrationGenerator.mjs"
 import { registerPaymentResultRoute } from "./lib/paymentResult.mjs"
-import { notifyAdminLicenseRequest, sendLicenseIssuedEmail } from "./lib/email.mjs"
+import { notifyAdminLicenseRequest, sendLicenseIssuedEmail, notifyAdminLegacyClaim } from "./lib/email.mjs"
+import { registerLegacyClaimRoutes } from "./lib/legacyClaimRoutes.mjs"
+import { isLegacyOrder } from "./lib/legacyClaims.mjs"
 import { pool, query, queryAll, queryOne, testConnection } from "./db/pool.mjs"
 import {
   registerUser,
@@ -1310,6 +1312,9 @@ app.post("/api/admin/orders/:orderId/action", authMiddleware("admin"), async (re
     const { action } = req.body
     const order = await queryOne(`SELECT * FROM orders WHERE order_id = $1`, [orderId])
     if (!order) return res.status(404).json({ error: "Pesanan tidak ditemukan" })
+    if (isLegacyOrder(order)) {
+      return res.status(409).json({ error: "Pesanan pelanggan lama tidak terhubung ke Midtrans" })
+    }
 
     if (action === "approve") {
       // Konfirmasi pembayaran manual (mis. transfer yang dicek sendiri). Midtrans tidak tahu.
@@ -1463,6 +1468,9 @@ registerLicenseRoutes(app, {
   generator: registrationGenerator,
 })
 
+// Klaim pelanggan lama: disetujui admin menjadi pesanan LEGACY- Rp 0
+registerLegacyClaimRoutes(app, { authMiddleware, queryOne, queryAll, pool, notifyAdminLegacyClaim })
+
 // Token pembayaran untuk melanjutkan pesanan yang belum dibayar
 app.post("/api/my/orders/:orderId/pay", authMiddleware(), async (req, res) => {
   try {
@@ -1492,6 +1500,8 @@ app.post("/api/my/orders/:orderId/refresh", authMiddleware(), async (req, res) =
   try {
     const order = await getOwnOrder(req.params.orderId, req.user.id)
     if (!order) return res.status(404).json({ error: "Pesanan tidak ditemukan" })
+    // Pesanan pelanggan lama tidak ada di Midtrans; statusnya tetap lunas
+    if (isLegacyOrder(order)) return res.json({ status: order.transaction_status, emailSent: false })
     res.json(await syncOrderFromMidtrans(order))
   } catch (err) {
     // 404 dari Midtrans = pelanggan belum memilih metode bayar; status tetap
