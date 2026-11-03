@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -11,6 +11,7 @@ import {
   Settings,
   Mail,
   Gift,
+  KeyRound,
   LogOut,
   Menu,
   X,
@@ -18,6 +19,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/hooks/useAuth"
+import { authHeaders } from "@/lib/auth"
 
 type NavItem = {
   to: string
@@ -34,6 +36,7 @@ const navItems: NavItem[] = [
   { to: "/admin/refunds", label: "Refund", icon: RotateCcw, roles: ["admin"] },
   { to: "/admin/customers", label: "Pelanggan", icon: Mail, roles: ["admin"] },
   { to: "/admin/trials", label: "Uji Coba Gratis", icon: Gift, roles: ["admin"] },
+  { to: "/admin/licenses", label: "Registrasi Lisensi", icon: KeyRound, roles: ["admin"] },
   { to: "/admin/settings", label: "Pengaturan Sistem", icon: Settings, roles: ["admin"] },
 ]
 
@@ -43,6 +46,16 @@ export function AdminLayout() {
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const [pendingLicenses, setPendingLicenses] = useState(0)
+
+  // Lencana jumlah permintaan registrasi yang menunggu; dimuat ulang tiap pindah halaman
+  useEffect(() => {
+    if (!isAdmin) return
+    fetch("/api/admin/license-requests?status=pending", { headers: authHeaders() })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => setPendingLicenses(data?.pending_count ?? 0))
+      .catch(() => {})
+  }, [isAdmin, location.pathname])
 
   // Guard: hanya admin & editor yang bisa akses
   if (loading) {
@@ -143,7 +156,12 @@ export function AdminLayout() {
                 title={collapsed ? item.label : undefined}
               >
                 <Icon className="size-4 shrink-0" />
-                {!collapsed && <span>{item.label}</span>}
+                {!collapsed && <span className="flex-1">{item.label}</span>}
+                {item.to === "/admin/licenses" && pendingLicenses > 0 && (
+                  <span className="rounded-full bg-red-600 px-1.5 text-[10px] font-semibold text-white">
+                    {pendingLicenses}
+                  </span>
+                )}
               </NavLink>
             )
           })}
