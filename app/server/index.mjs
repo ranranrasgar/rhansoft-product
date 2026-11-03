@@ -35,6 +35,7 @@ import { registerPaymentResultRoute } from "./lib/paymentResult.mjs"
 import { notifyAdminLicenseRequest, sendLicenseIssuedEmail, notifyAdminLegacyClaim } from "./lib/email.mjs"
 import { registerLegacyClaimRoutes } from "./lib/legacyClaimRoutes.mjs"
 import { isLegacyOrder, legacyOrderActionError } from "./lib/legacyClaims.mjs"
+import { registerProductCreateRoute, resolveCategoryId, writeProductRelations } from "./lib/productRoutes.mjs"
 import { pool, query, queryAll, queryOne, testConnection } from "./db/pool.mjs"
 import {
   registerUser,
@@ -1078,12 +1079,16 @@ app.get("/api/orders", authMiddleware("admin"), async (req, res) => {
 })
 
 // ── Update product (admin) ───────────────────────────────────────
+// Tambah produk baru (juga dipakai fitur Salin produk)
+registerProductCreateRoute(app, { authMiddleware, pool })
+
 app.put("/api/products/:id", authMiddleware("editor"), async (req, res) => {
   const client = await pool.connect()
   try {
     const { id } = req.params
     const {
       name,
+      category,
       price,
       originalPrice,
       description,
@@ -1112,6 +1117,14 @@ app.put("/api/products/:id", authMiddleware("editor"), async (req, res) => {
       await client.query("ROLLBACK")
       return res.status(404).json({ error: "Produk tidak ditemukan" })
     }
+    let categoryId = cur.category_id
+    if (category !== undefined) {
+      categoryId = await resolveCategoryId(client, category)
+      if (!categoryId) {
+        await client.query("ROLLBACK")
+        return res.status(400).json({ error: "Kategori tidak ditemukan" })
+      }
+    }
     const pick = (v, c) => (v === undefined ? c : v)
     const json = (v) => (v == null ? null : JSON.stringify(v))
 
@@ -1120,8 +1133,8 @@ app.put("/api/products/:id", authMiddleware("editor"), async (req, res) => {
         name = $1, price = $2, original_price = $3, description = $4,
         image = $5, badge = $6, version = $7, platform = $8, license = $9,
         download_size = $10, color = $11, download_links = $12, install_tutorial = $13,
-        gallery = $14, featured = $15, updated_at = NOW()
-       WHERE id = $16`,
+        gallery = $14, featured = $15, category_id = $16, updated_at = NOW()
+       WHERE id = $17`,
       [
         pick(name, cur.name),
         pick(price, cur.price),
@@ -1138,43 +1151,12 @@ app.put("/api/products/:id", authMiddleware("editor"), async (req, res) => {
         installTutorial === undefined ? cur.install_tutorial : installTutorial || null,
         gallery === undefined ? json(cur.gallery) : json(gallery || null),
         featured === undefined ? cur.featured : featured === true || featured === "true",
+        categoryId,
         id,
       ]
     )
 
-    // Replace specs
-    if (Array.isArray(specs)) {
-      await client.query("DELETE FROM product_specs WHERE product_id = $1", [id])
-      for (let j = 0; j < specs.length; j++) {
-        await client.query(
-          `INSERT INTO product_specs (product_id, label, value, sort_order) VALUES ($1, $2, $3, $4)`,
-          [id, specs[j].label, specs[j].value, j]
-        )
-      }
-    }
-
-    // Replace highlights
-    if (Array.isArray(highlights)) {
-      await client.query("DELETE FROM product_highlights WHERE product_id = $1", [id])
-      for (let j = 0; j < highlights.length; j++) {
-        await client.query(
-          `INSERT INTO product_highlights (product_id, highlight, sort_order) VALUES ($1, $2, $3)`,
-          [id, highlights[j], j]
-        )
-      }
-    }
-
-    // Replace product_platforms (many-to-many)
-    if (platformIds && Array.isArray(platformIds)) {
-      await client.query("DELETE FROM product_platforms WHERE product_id = $1", [id])
-      for (let j = 0; j < platformIds.length; j++) {
-        await client.query(
-          `INSERT INTO product_platforms (product_id, platform_id, sort_order) VALUES ($1, $2, $3)
-           ON CONFLICT (product_id, platform_id) DO NOTHING`,
-          [id, platformIds[j], j]
-        )
-      }
-    }
+    await writeProductRelations(client, id, { specs, highlights, platformIds })
 
     await client.query("COMMIT")
     res.json({ status: "ok", id })

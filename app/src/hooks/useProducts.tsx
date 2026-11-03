@@ -16,7 +16,7 @@ type ProductContextValue = {
   loading: boolean
   error: string | null
   getProductById: (id: string) => Product | undefined
-  addProduct: (product: Omit<Product, "id">) => Product
+  addProduct: (product: Omit<Product, "id">) => Promise<string>
   updateProduct: (id: string, updates: Partial<Product>) => void
   deleteProduct: (id: string) => void
   resetProducts: () => void
@@ -73,16 +73,20 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     [products]
   )
 
+  // Simpan ke server dulu; katalog dimuat ulang agar id dan urutan sama dengan database
   const addProduct = useCallback(
-    (product: Omit<Product, "id">) => {
-      const newProduct: Product = {
-        ...product,
-        id: `sw-${Date.now()}`,
-      }
-      setProducts((prev) => [...prev, newProduct])
-      return newProduct
+    async (product: Omit<Product, "id">) => {
+      const res = await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify(product),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || "Gagal menyimpan produk")
+      refetch()
+      return data.id as string
     },
-    []
+    [refetch]
   )
 
   const updateProduct = useCallback(

@@ -49,6 +49,8 @@ export async function cleanupFixtures() {
   await query(`DELETE FROM orders WHERE order_id LIKE 'LICTEST-%'`)
   await query(`DELETE FROM orders WHERE order_id LIKE 'LEGACY-%' AND user_id IN (${testUsers})`)
   await query(`DELETE FROM customers WHERE email LIKE 'lictest-%'`)
+  // Pengaturan yang terakhir diubah akun uji tetap ada; hanya jejak pengubahnya dilepas
+  await query(`UPDATE settings SET updated_by = NULL WHERE updated_by IN (${testUsers})`)
   await query(`DELETE FROM users WHERE email LIKE 'lictest-%'`)
   await query(`DELETE FROM products WHERE id = 'lictest-product'`)
 }
