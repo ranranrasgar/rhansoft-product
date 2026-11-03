@@ -13,3 +13,7 @@ test("PPN 11% dibulatkan, total = subtotal + PPN", () => {
   assert.deepEqual(calculateOrderTotals(750000), { subtotal: 750000, shipping: 0, tax: 82500, total: 832500 })
   assert.equal(calculateOrderTotals(1005).tax, 111) // 110.55 dibulatkan
 })
+
+test("ongkir dari pengaturan ditambahkan ke total, PPN tetap atas subtotal", () => {
+  assert.deepEqual(calculateOrderTotals(750000, 20000), { subtotal: 750000, shipping: 20000, tax: 82500, total: 852500 })
+})
