@@ -17,6 +17,8 @@
  *   GET  /api/orders                     — list all orders
  */
 import crypto from "crypto"
+import { priceOrder, checkClientTotal } from "./lib/pricing.mjs"
+import { registerSettingsRoutes, loadShippingSettings } from "./lib/settingsRoutes.mjs"
 import path from "path"
 import { fileURLToPath } from "url"
 import express from "express"
@@ -662,6 +664,7 @@ app.post("/api/create-transaction", authMiddleware(), async (req, res) => {
       customer,
       items: requestedItems,
       payment_method,
+      province,
     } = req.body
 
     // Validate
@@ -714,17 +717,15 @@ app.post("/api/create-transaction", authMiddleware(), async (req, res) => {
       }
     })
 
-    const subtotal = items.reduce((sum, it) => sum + it.price * it.quantity, 0)
-    // Harus sama dengan CheckoutPage.tsx: gratis ongkir mulai Rp 1.000.000, selain itu Rp 25.000
-    const shippingCost = subtotal >= 1000000 ? 0 : 25000
-    const taxAmount = Math.round(subtotal * 0.11)
-    const totalAmount = subtotal + shippingCost + taxAmount
+    // Harga, ongkir (pengaturan admin) dan item Midtrans dari satu fungsi teruji (lib/pricing.mjs);
+    // shipping_cost dari browser diabaikan
+    const priced = priceOrder({ items, settings: await loadShippingSettings(queryOne), province })
+    if ("error" in priced) return res.status(400).json({ error: priced.error })
+    const { shipping: shippingCost, tax: taxAmount, total: totalAmount, itemDetails } = priced
 
-    if (Number(req.body.gross_amount) !== totalAmount) {
-      console.warn(
-        `⚠️  gross_amount dari client (${req.body.gross_amount}) berbeda dengan hitungan server (${totalAmount}) untuk order ${order_id}`
-      )
-    }
+    // Pelanggan harus membayar persis yang ia lihat: bila total berbeda (pengaturan/harga berubah), minta muat ulang
+    const totalMismatch = checkClientTotal(req.body.gross_amount, totalAmount)
+    if (totalMismatch) return res.status(409).json(totalMismatch)
 
     if (payment_method && ENABLED_PAYMENT_METHODS.length && !ENABLED_PAYMENT_METHODS.includes(payment_method)) {
       return res.status(400).json({ error: "Metode pembayaran ini belum tersedia" })
@@ -824,22 +825,7 @@ app.post("/api/create-transaction", authMiddleware(), async (req, res) => {
         phone: customer.phone,
         shipping_address: midtransShippingAddress,
       },
-      item_details: [
-        ...items.map((item) => ({
-          id: item.id,
-          name: item.name.length > 50 ? item.name.substring(0, 50) : item.name,
-          price: item.price,
-          quantity: item.quantity,
-          brand: item.brand,
-          category: item.category,
-        })),
-        ...(shippingCost > 0
-          ? [{ id: "SHIPPING", name: "Ongkos Kirim", price: shippingCost, quantity: 1, brand: "Rhansoft", category: "Shipping" }]
-          : []),
-        ...(taxAmount > 0
-          ? [{ id: "TAX", name: "PPN 11%", price: taxAmount, quantity: 1, brand: "Rhansoft", category: "Tax" }]
-          : []),
-      ],
+      item_details: itemDetails,
       enabled_payments: enabledPayments,
       credit_card: payment_method === "card" ? { secure: true } : undefined,
     }
@@ -920,6 +906,9 @@ app.get("/api/transaction-status/:orderId", async (req, res) => {
 
 // Status pembayaran untuk halaman tujuan pengalihan Midtrans (dipakai juga oleh website lain di akun yang sama)
 registerPaymentResultRoute(app, { snap, queryOne })
+
+// Pengaturan sistem (ongkos kirim) yang diubah admin
+registerSettingsRoutes(app, { authMiddleware, queryOne })
 
 // ── Midtrans Webhook (payment notification) ────────────────────
 const handleWebhook = async (req, res) => {

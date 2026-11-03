@@ -17,6 +17,8 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { useCart } from "@/hooks/useCart"
+import { PROVINCES } from "@/lib/indonesia-provinces"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/hooks/useAuth"
 import {
   loadSnapScript,
@@ -31,6 +33,15 @@ function formatPrice(n: number) {
     currency: "IDR",
     minimumFractionDigits: 0,
   })
+}
+
+type ShippingConfig = {
+  enabled: boolean
+  mode: "flat" | "province"
+  label: string
+  flat_amount: number
+  default_amount: number
+  province_rates: Record<string, number>
 }
 
 type PaymentMethod = "card" | "gopay" | "bank_transfer" | "shopeepay"
@@ -119,11 +130,36 @@ export function CheckoutPage() {
       .catch(() => setEnabledMethods([]))
   }, [])
 
+  // Pengaturan ongkos kirim dari admin (perkiraan tampilan; total resmi dihitung server)
+  const [shippingConfig, setShippingConfig] = useState<ShippingConfig | null>(null)
+  const [province, setProvince] = useState("")
+  const [shippingConfigError, setShippingConfigError] = useState(false)
+  // Tombol Bayar menunggu konfigurasi ini, agar total yang tampil sama dengan yang ditagih
+  const loadShippingConfig = () => {
+    setShippingConfigError(false)
+    fetch("/api/shipping-config")
+      .then((res) => {
+        if (!res.ok) throw new Error()
+        return res.json()
+      })
+      .then((conf) => setShippingConfig(conf))
+      .catch(() => setShippingConfigError(true))
+  }
+  useEffect(loadShippingConfig, [])
+  const needsProvince = Boolean(shippingConfig?.enabled && shippingConfig.mode === "province")
+
   const useMidtransDefault = enabledMethods !== null && enabledMethods.length === 0
   const visiblePaymentOptions = paymentOptions.filter((o) => enabledMethods?.includes(o.id))
 
-  // Free shipping for orders above Rp 1.000.000, otherwise Rp 25.000
-  const shippingCost = subtotal >= 1000000 ? 0 : 25000
+  // Sama dengan server (lib/shippingSettings.mjs): nonaktif 0, flat satu nominal, provinsi tarif atau tarif standar
+  const shippingCost = !shippingConfig?.enabled
+    ? 0
+    : shippingConfig.mode === "flat"
+      ? shippingConfig.flat_amount
+      : province
+        ? (shippingConfig.province_rates[province] ?? shippingConfig.default_amount)
+        : 0
+  const shippingLabel = shippingConfig?.label || "Ongkos Kirim"
   // PPN 11% (Indonesian VAT)
   const tax = Math.round(subtotal * 0.11)
   const total = subtotal + shippingCost + tax
@@ -146,6 +182,10 @@ export function CheckoutPage() {
     }
     if (!shipping.address || !shipping.city || !shipping.postalCode) {
       toast.error("Mohon lengkapi alamat pengiriman")
+      return false
+    }
+    if (needsProvince && !province) {
+      toast.error("Mohon pilih provinsi")
       return false
     }
     return true
@@ -207,6 +247,7 @@ export function CheckoutPage() {
         shipping_cost: shippingCost,
         tax,
         payment_method: useMidtransDefault ? undefined : paymentMethod,
+        province: needsProvince ? province : undefined,
       })
 
       // 4. Open Midtrans Snap payment modal
@@ -241,6 +282,8 @@ export function CheckoutPage() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Terjadi kesalahan"
       toast.error("Error pembayaran", { description: msg })
+      // Server menolak bila total berubah (ongkir/harga diperbarui): muat ulang pengaturan agar total diperbarui
+      loadShippingConfig()
     } finally {
       setProcessing(false)
     }
@@ -372,6 +415,23 @@ export function CheckoutPage() {
                   autoComplete="postal-code"
                 />
               </div>
+              {needsProvince && (
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="province">Provinsi</Label>
+                  <Select value={province} onValueChange={setProvince}>
+                    <SelectTrigger id="province" className="w-full">
+                      <SelectValue placeholder="Pilih provinsi" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROVINCES.map((p) => (
+                        <SelectItem key={p.name} value={p.name}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </div>
 
@@ -481,12 +541,12 @@ export function CheckoutPage() {
                 <span className="text-muted-foreground">Subtotal</span>
                 <span className="font-medium">{formatPrice(subtotal)}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Ongkos Kirim</span>
-                <span className="font-medium">
-                  {shippingCost === 0 ? "Gratis" : formatPrice(shippingCost)}
-                </span>
-              </div>
+              {shippingCost > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">{shippingLabel}</span>
+                  <span className="font-medium">{formatPrice(shippingCost)}</span>
+                </div>
+              )}
               <div className="flex justify-between">
                 <span className="text-muted-foreground">PPN (11%)</span>
                 <span className="font-medium">{formatPrice(tax)}</span>
@@ -500,11 +560,20 @@ export function CheckoutPage() {
               <span className="text-2xl font-semibold">{formatPrice(total)}</span>
             </div>
 
+            {shippingConfigError && (
+              <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+                Gagal memuat ongkos kirim, jadi total belum bisa dipastikan.{" "}
+                <button type="button" className="font-semibold underline" onClick={loadShippingConfig}>
+                  Coba lagi
+                </button>
+              </div>
+            )}
+
             <Button
               size="lg"
               className="mt-6 w-full rounded-full"
               onClick={handlePay}
-              disabled={processing}
+              disabled={processing || shippingConfig === null}
             >
               {processing ? (
                 <>
