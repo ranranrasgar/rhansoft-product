@@ -1214,6 +1214,35 @@ app.post("/api/admin/orders/:orderId/action", authMiddleware("admin"), async (re
       return res.json({ status: "cancel" })
     }
 
+    if (action === "refund") {
+      const reason = String(req.body.reason || "").trim()
+      if (!reason) return res.status(400).json({ error: "Alasan refund wajib diisi" })
+      if (!isPaidStatus(order.transaction_status)) {
+        return res.status(409).json({ error: "Hanya pesanan yang sudah dibayar yang bisa direfund" })
+      }
+      if (order.payment_type !== "manual") {
+        // Dikembalikan lewat Midtrans (hanya metode yang mendukung refund online, mis. kartu, GoPay, QRIS)
+        try {
+          await snap.transaction.refundDirect(orderId, {
+            refund_key: `rf-${orderId}-${Date.now()}`,
+            amount: Number(order.total_amount),
+            reason,
+          })
+        } catch (e) {
+          return res.status(502).json({ error: "Midtrans menolak refund: " + e.message })
+        }
+      }
+      const row = await queryOne(
+        `UPDATE orders SET transaction_status = 'refund'
+         WHERE order_id = $1 AND transaction_status IN ('settlement', 'capture') RETURNING order_id`,
+        [orderId]
+      )
+      if (!row) return res.status(409).json({ error: "Status pesanan sudah berubah" })
+      await logOrderAction(order, "refund", order.payment_type, `Refund: ${reason}`, req.user)
+      console.log(`↩️ Order ${orderId} direfund oleh ${req.user.email}: ${reason}`)
+      return res.json({ status: "refund", manual: order.payment_type === "manual" })
+    }
+
     if (action === "sync") {
       const s = await snap.transaction.status(orderId)
       const paid = isPaidStatus(s.transaction_status)
