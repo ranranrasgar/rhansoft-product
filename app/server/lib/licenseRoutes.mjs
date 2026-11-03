@@ -36,7 +36,7 @@ export async function fetchMyLicenseRequests(queryAll, userId) {
 }
 
 export function registerLicenseRoutes(app, deps) {
-  const { authMiddleware, queryOne, queryAll, pool, notifyAdminLicenseRequest, sendLicenseIssuedEmail } = deps
+  const { authMiddleware, queryOne, queryAll, pool, notifyAdminLicenseRequest, sendLicenseIssuedEmail, generator } = deps
   const allow = createRateLimiter(REQUESTS_PER_HOUR, 60 * 60 * 1000)
 
   // ── Pelanggan: minta nomor registrasi untuk satu item pesanan ──
@@ -215,6 +215,41 @@ export function registerLicenseRoutes(app, deps) {
     } catch (err) {
       console.error("PUT reject error:", err.message)
       res.status(500).json({ error: "Gagal menolak permintaan" })
+    }
+  })
+
+  // ── Admin: generator nomor registrasi (rumus ada di berkas pribadi, lihat registrationGenerator.mjs) ──
+  app.get("/api/admin/license-generator", authMiddleware("admin"), (req, res) => {
+    res.json({ available: generator.available, versions: generator.versions })
+  })
+
+  // Hanya menghitung dan mengembalikan hasil semua versi; admin yang memilih dan menerbitkan sendiri
+  app.post("/api/admin/license-requests/:id/generate", authMiddleware("admin"), async (req, res) => {
+    const id = Number.parseInt(req.params.id, 10)
+    if (!Number.isInteger(id)) return res.status(404).json({ error: "Permintaan tidak ditemukan" })
+    try {
+      const request = await queryOne(
+        `SELECT lr.status, lr.license_code, o.transaction_status
+         FROM license_requests lr
+         JOIN order_items oi ON oi.id = lr.order_item_id
+         JOIN orders o ON o.id = oi.order_id
+         WHERE lr.id = $1`,
+        [id]
+      )
+      if (!request) return res.status(404).json({ error: "Permintaan tidak ditemukan" })
+      if (!PAID.includes(request.transaction_status)) {
+        return res.status(409).json({ error: "Pesanan ini tidak lagi berstatus lunas" })
+      }
+      if (request.status === "rejected") {
+        return res.status(409).json({ error: "Permintaan ini sudah ditolak" })
+      }
+      if (!generator.available) {
+        return res.status(501).json({ error: "Generator nomor registrasi belum dipasang di server" })
+      }
+      res.json({ results: generator.generate(request.license_code) })
+    } catch (err) {
+      console.error("POST generate error:", err.message)
+      res.status(500).json({ error: "Gagal membuat nomor registrasi" })
     }
   })
 }
