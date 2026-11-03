@@ -46,3 +46,6 @@ dev/
 
 # CodeBuddy internal data
 .codebuddy/
+
+# Backup database dari update.sh (berisi data pribadi)
+backups/
