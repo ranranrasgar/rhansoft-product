@@ -122,8 +122,8 @@ export function CheckoutPage() {
   const useMidtransDefault = enabledMethods !== null && enabledMethods.length === 0
   const visiblePaymentOptions = paymentOptions.filter((o) => enabledMethods?.includes(o.id))
 
-  // Free shipping for orders above Rp 1.000.000, otherwise Rp 25.000
-  const shippingCost = subtotal >= 1000000 ? 0 : 25000
+  // Software dikirim lewat unduhan dan lisensi: tidak ada ongkos kirim (sama dengan server, lib/pricing.mjs)
+  const shippingCost = 0
   // PPN 11% (Indonesian VAT)
   const tax = Math.round(subtotal * 0.11)
   const total = subtotal + shippingCost + tax
@@ -480,12 +480,6 @@ export function CheckoutPage() {
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Subtotal</span>
                 <span className="font-medium">{formatPrice(subtotal)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Ongkos Kirim</span>
-                <span className="font-medium">
-                  {shippingCost === 0 ? "Gratis" : formatPrice(shippingCost)}
-                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">PPN (11%)</span>

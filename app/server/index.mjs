@@ -17,6 +17,7 @@
  *   GET  /api/orders                     — list all orders
  */
 import crypto from "crypto"
+import { calculateOrderTotals } from "./lib/pricing.mjs"
 import path from "path"
 import { fileURLToPath } from "url"
 import express from "express"
@@ -715,10 +716,8 @@ app.post("/api/create-transaction", authMiddleware(), async (req, res) => {
     })
 
     const subtotal = items.reduce((sum, it) => sum + it.price * it.quantity, 0)
-    // Harus sama dengan CheckoutPage.tsx: gratis ongkir mulai Rp 1.000.000, selain itu Rp 25.000
-    const shippingCost = subtotal >= 1000000 ? 0 : 25000
-    const taxAmount = Math.round(subtotal * 0.11)
-    const totalAmount = subtotal + shippingCost + taxAmount
+    // Satu sumber perhitungan (lib/pricing.mjs); harus sama dengan CheckoutPage.tsx
+    const { shipping: shippingCost, tax: taxAmount, total: totalAmount } = calculateOrderTotals(subtotal)
 
     if (Number(req.body.gross_amount) !== totalAmount) {
       console.warn(
