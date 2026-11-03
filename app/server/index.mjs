@@ -16,6 +16,7 @@
  *   POST /api/webhook                    — Midtrans payment notification webhook
  *   GET  /api/orders                     — list all orders
  */
+import crypto from "crypto"
 import path from "path"
 import { fileURLToPath } from "url"
 import express from "express"
@@ -863,10 +864,44 @@ app.get("/api/transaction-status/:orderId", async (req, res) => {
 
 // ── Midtrans Webhook (payment notification) ────────────────────
 const handleWebhook = async (req, res) => {
+  // Keamanan: webhook ini bisa dipanggil siapa saja, jadi body-nya tidak boleh dipercaya.
+  // 1) tanda tangan Midtrans harus cocok, 2) status diambil langsung dari Midtrans,
+  // 3) nominal harus sama dengan pesanan di database.
+  const body = req.body || {}
+  const expected = crypto
+    .createHash("sha512")
+    .update(`${body.order_id}${body.status_code}${body.gross_amount}${SERVER_KEY}`)
+    .digest("hex")
+  const given = String(body.signature_key || "")
+  const signatureOk =
+    given.length === expected.length &&
+    crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected))
+  if (!signatureOk) {
+    console.warn(`⚠️ Webhook ditolak: signature tidak valid (order ${body.order_id})`)
+    return res.status(403).json({ error: "Signature tidak valid" })
+  }
+
+  let notif
+  try {
+    notif = await snap.transaction.status(body.order_id)
+  } catch (err) {
+    // Mis. notifikasi uji dari dashboard Midtrans atau transaksi belum ada: abaikan agar tidak diulang terus
+    console.warn(`⚠️ Webhook diabaikan: status ${body.order_id} tidak ditemukan di Midtrans`)
+    return res.status(200).json({ status: "ignored" })
+  }
+
+  const known = await queryOne("SELECT total_amount FROM orders WHERE order_id = $1", [notif.order_id])
+  if (!known) return res.status(200).json({ status: "ignored" })
+  if (Math.round(Number(notif.gross_amount)) !== Number(known.total_amount)) {
+    console.error(
+      `🚨 Webhook ditolak: nominal ${notif.gross_amount} tidak sama dengan pesanan ${notif.order_id} (${known.total_amount})`
+    )
+    return res.status(400).json({ error: "Nominal tidak cocok" })
+  }
+
   const client = await pool.connect()
 
   try {
-    const notif = req.body
 
     console.log("\n📥 Webhook Notification:")
     console.log(`   Order ID    : ${notif.order_id}`)
