@@ -24,7 +24,7 @@ Website katalog & checkout produk software dengan integrasi Midtrans (sandbox) d
 - **Transform highlights** — hapus `.map(h => h.highlight)` karena LATERAL sudah return array string
 
 ### 5. Fitur Pendaftaran Uji Coba Gratis
-- Halaman `/trial-register` — form lengkap sesuai KTP (NIK 16 digit)
+- Halaman `/trial-register` — form pendaftaran sederhana (nama, email, WhatsApp)
 - Field wajib: Email & WhatsApp
 - Backend API `POST /api/trial/register` — simpan ke DB + kirim email surat resmi
 - **Email surat resmi berkop** Rhansoft (nodemailer SMTP Gmail)

@@ -280,7 +280,7 @@ app.get("/api/categories", async (req, res) => {
   }
 })
 
-app.post("/api/categories", async (req, res) => {
+app.post("/api/categories", authMiddleware("editor"), async (req, res) => {
   try {
     const { id, name, tagline, icon, gradient } = req.body
     if (!id || !name) {
@@ -302,7 +302,7 @@ app.post("/api/categories", async (req, res) => {
   }
 })
 
-app.put("/api/categories/:id", async (req, res) => {
+app.put("/api/categories/:id", authMiddleware("editor"), async (req, res) => {
   try {
     const { id } = req.params
     const { name, tagline, icon, gradient, sort_order } = req.body
@@ -324,7 +324,7 @@ app.put("/api/categories/:id", async (req, res) => {
   }
 })
 
-app.delete("/api/categories/:id", async (req, res) => {
+app.delete("/api/categories/:id", authMiddleware("editor"), async (req, res) => {
   try {
     const { id } = req.params
     // Cek apakah ada produk yang pakai kategori ini
@@ -348,7 +348,7 @@ app.delete("/api/categories/:id", async (req, res) => {
 // ── Image Upload ke Cloudflare R2 ─────────────────────────────────
 // POST /api/upload  (multipart/form-data, field: "image")
 // Kompres gambar (max 1200px width, quality 80) sebelum upload ke R2
-app.post("/api/upload", upload.single("image"), async (req, res) => {
+app.post("/api/upload", authMiddleware("editor"), upload.single("image"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "File gambar tidak ditemukan" })
@@ -946,7 +946,7 @@ app.post("/api/webhooks/midtrans/callback", handleWebhook)
 app.post("/api/payment/notification", handleWebhook)
 
 // ── List orders ─────────────────────────────────────────────────
-app.get("/api/orders", async (req, res) => {
+app.get("/api/orders", authMiddleware("admin"), async (req, res) => {
   try {
     const rows = await queryAll(
       `SELECT o.*, c.first_name, c.last_name, c.email, c.phone,
@@ -969,7 +969,7 @@ app.get("/api/orders", async (req, res) => {
 })
 
 // ── Update product (admin) ───────────────────────────────────────
-app.put("/api/products/:id", async (req, res) => {
+app.put("/api/products/:id", authMiddleware("editor"), async (req, res) => {
   const client = await pool.connect()
   try {
     const { id } = req.params
@@ -1069,7 +1069,7 @@ app.put("/api/products/:id", async (req, res) => {
 })
 
 // ── List orders with items (admin) ───────────────────────────────
-app.get("/api/admin/orders", async (req, res) => {
+app.get("/api/admin/orders", authMiddleware("admin"), async (req, res) => {
   try {
     const rows = await queryAll(
       `SELECT o.*, c.first_name, c.last_name, c.email, c.phone,
@@ -1094,7 +1094,7 @@ app.get("/api/admin/orders", async (req, res) => {
 })
 
 // ── Resend email for an order (admin) ────────────────────────────
-app.post("/api/admin/resend-email/:orderId", async (req, res) => {
+app.post("/api/admin/resend-email/:orderId", authMiddleware("admin"), async (req, res) => {
   try {
     const { orderId } = req.params
     const order = await queryOne(
@@ -1121,6 +1121,158 @@ app.post("/api/admin/resend-email/:orderId", async (req, res) => {
     res.json({ status: "ok", message: "Email sent" })
   } catch (err) {
     console.error("Resend email error:", err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ── Order actions (admin): approve, cancel, sync ─────────────────
+async function sendOrderEmailFor(orderId) {
+  const order = await queryOne(
+    `SELECT o.*, c.first_name, c.last_name, c.email, c.phone
+     FROM orders o
+     JOIN customers c ON o.customer_id = c.id
+     WHERE o.order_id = $1`,
+    [orderId]
+  )
+  if (!order) throw new Error("Order not found")
+  const items = await queryAll(
+    `SELECT oi.*, p.download_links, p.install_tutorial, p.name as current_name
+     FROM order_items oi
+     LEFT JOIN products p ON oi.product_id = p.id
+     WHERE oi.order_id = $1`,
+    [order.id]
+  )
+  const { sendOrderEmail } = await import("./lib/email.mjs")
+  await sendOrderEmail(order, items)
+}
+
+const isPaidStatus = (s) => s === "settlement" || s === "capture"
+
+async function logOrderAction(order, status, paymentType, message, admin) {
+  await query(
+    `INSERT INTO payment_notifications
+      (order_id, transaction_status, payment_type, gross_amount, status_message, raw_notification)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [
+      order.order_id,
+      status,
+      paymentType,
+      order.gross_amount,
+      message,
+      JSON.stringify({ source: "admin", admin: admin.email }),
+    ]
+  )
+}
+
+app.post("/api/admin/orders/:orderId/action", authMiddleware("admin"), async (req, res) => {
+  try {
+    const { orderId } = req.params
+    const { action } = req.body
+    const order = await queryOne(`SELECT * FROM orders WHERE order_id = $1`, [orderId])
+    if (!order) return res.status(404).json({ error: "Pesanan tidak ditemukan" })
+
+    if (action === "approve") {
+      // Konfirmasi pembayaran manual (mis. transfer yang dicek sendiri). Midtrans tidak tahu.
+      const row = await queryOne(
+        `UPDATE orders SET transaction_status = 'settlement', payment_type = 'manual', paid_at = NOW()
+         WHERE order_id = $1 AND transaction_status = 'pending' RETURNING order_id`,
+        [orderId]
+      )
+      if (!row) return res.status(409).json({ error: "Hanya pesanan pending yang bisa disetujui" })
+      await logOrderAction(order, "settlement", "manual", "Disetujui manual oleh admin", req.user)
+      let emailSent = false
+      try {
+        await sendOrderEmailFor(orderId)
+        emailSent = true
+      } catch (e) {
+        console.error("⚠️ Approve: failed to send email:", e.message)
+      }
+      console.log(`✅ Order ${orderId} disetujui manual oleh ${req.user.email}`)
+      return res.json({ status: "settlement", emailSent })
+    }
+
+    if (action === "cancel") {
+      if (order.transaction_status !== "pending") {
+        return res.status(409).json({ error: "Hanya pesanan pending yang bisa dibatalkan" })
+      }
+      try {
+        await snap.transaction.cancel(orderId)
+      } catch (e) {
+        // 404 = transaksi belum pernah dibayar/dibuat di Midtrans, aman dibatalkan lokal
+        if (!String(e.message).includes("404")) {
+          return res.status(502).json({ error: "Midtrans menolak pembatalan: " + e.message })
+        }
+      }
+      const row = await queryOne(
+        `UPDATE orders SET transaction_status = 'cancel'
+         WHERE order_id = $1 AND transaction_status = 'pending' RETURNING order_id`,
+        [orderId]
+      )
+      if (!row) return res.status(409).json({ error: "Status pesanan sudah berubah" })
+      await logOrderAction(order, "cancel", order.payment_type, "Dibatalkan oleh admin", req.user)
+      console.log(`🚫 Order ${orderId} dibatalkan oleh ${req.user.email}`)
+      return res.json({ status: "cancel" })
+    }
+
+    if (action === "refund") {
+      const reason = String(req.body.reason || "").trim()
+      if (!reason) return res.status(400).json({ error: "Alasan refund wajib diisi" })
+      if (!isPaidStatus(order.transaction_status)) {
+        return res.status(409).json({ error: "Hanya pesanan yang sudah dibayar yang bisa direfund" })
+      }
+      if (order.payment_type !== "manual") {
+        // Dikembalikan lewat Midtrans (hanya metode yang mendukung refund online, mis. kartu, GoPay, QRIS)
+        try {
+          await snap.transaction.refundDirect(orderId, {
+            refund_key: `rf-${orderId}-${Date.now()}`,
+            amount: Number(order.total_amount),
+            reason,
+          })
+        } catch (e) {
+          return res.status(502).json({ error: "Midtrans menolak refund: " + e.message })
+        }
+      }
+      const row = await queryOne(
+        `UPDATE orders SET transaction_status = 'refund'
+         WHERE order_id = $1 AND transaction_status IN ('settlement', 'capture') RETURNING order_id`,
+        [orderId]
+      )
+      if (!row) return res.status(409).json({ error: "Status pesanan sudah berubah" })
+      await logOrderAction(order, "refund", order.payment_type, `Refund: ${reason}`, req.user)
+      console.log(`↩️ Order ${orderId} direfund oleh ${req.user.email}: ${reason}`)
+      return res.json({ status: "refund", manual: order.payment_type === "manual" })
+    }
+
+    if (action === "sync") {
+      const s = await snap.transaction.status(orderId)
+      const paid = isPaidStatus(s.transaction_status)
+      await query(
+        `UPDATE orders SET transaction_status = $1, payment_type = $2,
+           paid_at = COALESCE(paid_at, $3), transaction_id = $4
+         WHERE order_id = $5`,
+        [
+          s.transaction_status,
+          s.payment_type,
+          paid ? s.settlement_time || new Date().toISOString() : null,
+          s.transaction_id,
+          orderId,
+        ]
+      )
+      let emailSent = false
+      if (paid && !isPaidStatus(order.transaction_status) && s.fraud_status !== "deny") {
+        try {
+          await sendOrderEmailFor(orderId)
+          emailSent = true
+        } catch (e) {
+          console.error("⚠️ Sync: failed to send email:", e.message)
+        }
+      }
+      return res.json({ status: s.transaction_status, emailSent })
+    }
+
+    res.status(400).json({ error: "Aksi tidak dikenal" })
+  } catch (err) {
+    console.error("Order action error:", err.message)
     res.status(500).json({ error: err.message })
   }
 })
@@ -1159,7 +1311,6 @@ app.post("/api/trial/register", async (req, res) => {
   try {
     const {
       fullName,
-      nik,
       email,
       whatsapp,
       address,
@@ -1174,9 +1325,6 @@ app.post("/api/trial/register", async (req, res) => {
     if (!fullName || fullName.trim().length < 3) {
       return res.status(400).json({ error: "Nama lengkap wajib diisi (min 3 karakter)" })
     }
-    if (!nik || !/^\d{16}$/.test(nik.replace(/\D/g, ""))) {
-      return res.status(400).json({ error: "NIK harus 16 digit angka sesuai KTP" })
-    }
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: "Email wajib diisi dan harus valid" })
     }
@@ -1190,15 +1338,14 @@ app.post("/api/trial/register", async (req, res) => {
     // Insert to DB
     const row = await queryOne(
       `INSERT INTO trial_registrations
-        (registration_id, full_name, nik, email, whatsapp, address, city, province,
+        (registration_id, full_name, email, whatsapp, address, city, province,
          company, position, product_name, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending')
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending')
        RETURNING id, registration_id, full_name, email, whatsapp, city, province,
                  company, product_name, created_at`,
       [
         registrationId,
         fullName.trim(),
-        nik.replace(/\D/g, ""),
         email.trim().toLowerCase(),
         cleanPhone,
         address || "",
@@ -1248,23 +1395,42 @@ app.post("/api/trial/register", async (req, res) => {
     console.error("❌ Trial register error:", error.message)
     if (error.code === "23505") {
       // unique constraint violation
-      return res.status(409).json({ error: "Email atau NIK sudah terdaftar" })
+      return res.status(409).json({ error: "Email sudah terdaftar" })
     }
     res.status(500).json({ error: error.message })
   }
 })
 
 // ── List trial registrations (admin) ─────────────────────────────
-app.get("/api/trial/registrations", async (req, res) => {
+app.get("/api/trial/registrations", authMiddleware("admin"), async (req, res) => {
   try {
     const rows = await queryAll(
-      `SELECT id, registration_id, full_name, nik, email, whatsapp, address, city,
+      `SELECT id, registration_id, full_name, email, whatsapp, address, city,
               province, company, position, product_name, status, email_sent,
               email_sent_at, created_at
        FROM trial_registrations
        ORDER BY created_at DESC`
     )
     res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ── Update trial registration status (admin) ─────────────────────
+const TRIAL_STATUSES = ["pending", "contacted", "active", "expired"]
+app.put("/api/trial/registrations/:id/status", authMiddleware("admin"), async (req, res) => {
+  try {
+    const { status } = req.body
+    if (!TRIAL_STATUSES.includes(status)) {
+      return res.status(400).json({ error: "Status tidak valid" })
+    }
+    const row = await queryOne(
+      `UPDATE trial_registrations SET status = $1 WHERE id = $2 RETURNING id, status`,
+      [status, req.params.id]
+    )
+    if (!row) return res.status(404).json({ error: "Pendaftaran tidak ditemukan" })
+    res.json(row)
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

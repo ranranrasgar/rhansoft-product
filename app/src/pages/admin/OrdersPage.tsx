@@ -1,3 +1,4 @@
+import { authHeaders } from "@/lib/auth"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,8 +16,22 @@ import {
   Loader2,
   Mail,
   Eye,
+  Download,
+  Check,
+  X,
+  RefreshCw,
 } from "lucide-react"
 import { toast } from "sonner"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   Dialog,
   DialogContent,
@@ -59,12 +74,16 @@ export function OrdersPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
   const [filterStatus, setFilterStatus] = useState("all")
+  const [dateFrom, setDateFrom] = useState("")
+  const [dateTo, setDateTo] = useState("")
   const [detailOrder, setDetailOrder] = useState<Order | null>(null)
+  const [confirm, setConfirm] = useState<{ order: Order; action: "approve" | "cancel" } | null>(null)
+  const [busy, setBusy] = useState(false)
 
   const fetchOrders = async () => {
     setLoading(true)
     try {
-      const res = await fetch("/api/admin/orders")
+      const res = await fetch("/api/admin/orders", { headers: authHeaders() })
       const data = await res.json()
       setOrders(data)
     } catch {
@@ -83,11 +102,38 @@ export function OrdersPage() {
     try {
       const res = await fetch(`/api/admin/resend-email/${orderId}`, {
         method: "POST",
+        headers: authHeaders(),
       })
       if (!res.ok) throw new Error("Gagal")
       toast.success("Email berhasil dikirim ulang")
     } catch {
       toast.error("Gagal mengirim email")
+    }
+  }
+
+  const runAction = async (orderId: string, action: "approve" | "cancel" | "sync") => {
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}/action`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ action }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Gagal")
+      if (action === "approve") {
+        toast.success(data.emailSent ? "Pesanan disetujui, email terkirim" : "Pesanan disetujui, tapi email gagal terkirim")
+      } else if (action === "cancel") {
+        toast.success("Pesanan dibatalkan")
+      } else {
+        toast.success(`Status dari Midtrans: ${data.status}`)
+      }
+      await fetchOrders()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal")
+    } finally {
+      setBusy(false)
+      setConfirm(null)
     }
   }
 
@@ -98,8 +144,32 @@ export function OrdersPage() {
       o.email.toLowerCase().includes(search.toLowerCase())
     const matchStatus =
       filterStatus === "all" || o.transaction_status === filterStatus
-    return matchSearch && matchStatus
+    const day = o.created_at.slice(0, 10)
+    const matchDate = (!dateFrom || day >= dateFrom) && (!dateTo || day <= dateTo)
+    return matchSearch && matchStatus && matchDate
   })
+
+  const handleExport = () => {
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`
+    const header = ["Order ID", "Tanggal", "Pelanggan", "Email", "Telepon", "Total", "Metode", "Status"]
+    const rows = filtered.map((o) => [
+      o.order_id,
+      o.created_at.slice(0, 10),
+      `${o.first_name} ${o.last_name}`.trim(),
+      o.email,
+      o.phone,
+      o.total_amount,
+      o.payment_type || o.payment_method,
+      o.transaction_status,
+    ])
+    const csv = [header, ...rows].map((r) => r.map(esc).join(",")).join("\r\n")
+    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }))
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `pesanan-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <div className="space-y-6">
@@ -174,6 +244,24 @@ export function OrdersPage() {
             <SelectItem value="expire">Expire</SelectItem>
           </SelectContent>
         </Select>
+        <Input
+          type="date"
+          value={dateFrom}
+          onChange={(e) => setDateFrom(e.target.value)}
+          className="w-full sm:w-40"
+          aria-label="Dari tanggal"
+        />
+        <Input
+          type="date"
+          value={dateTo}
+          onChange={(e) => setDateTo(e.target.value)}
+          className="w-full sm:w-40"
+          aria-label="Sampai tanggal"
+        />
+        <Button variant="outline" onClick={handleExport} disabled={filtered.length === 0}>
+          <Download className="mr-2 size-4" />
+          Ekspor CSV
+        </Button>
       </div>
 
       {/* Table */}
@@ -253,6 +341,37 @@ export function OrdersPage() {
                       >
                         <Mail className="size-4" />
                       </Button>
+                      <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        disabled={busy}
+                        onClick={() => runAction(o.order_id, "sync")}
+                        title="Cek status ke Midtrans"
+                      >
+                        <RefreshCw className="size-4" />
+                      </Button>
+                      {o.transaction_status === "pending" && (
+                        <>
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
+                            className="text-emerald-600"
+                            onClick={() => setConfirm({ order: o, action: "approve" })}
+                            title="Setujui (konfirmasi pembayaran manual)"
+                          >
+                            <Check className="size-4" />
+                          </Button>
+                          <Button
+                            size="icon-sm"
+                            variant="ghost"
+                            className="text-red-600"
+                            onClick={() => setConfirm({ order: o, action: "cancel" })}
+                            title="Batalkan pesanan"
+                          >
+                            <X className="size-4" />
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -261,6 +380,34 @@ export function OrdersPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Konfirmasi aksi */}
+      <AlertDialog open={!!confirm} onOpenChange={(open) => !open && !busy && setConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {confirm?.action === "approve" ? "Setujui pesanan ini?" : "Batalkan pesanan ini?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {confirm?.action === "approve"
+                ? `Pesanan ${confirm.order.order_id} (${formatPrice(confirm.order.total_amount)}) ditandai LUNAS secara manual dan email lisensi/download langsung dikirim ke ${confirm.order.email}. Pastikan pembayaran sudah benar-benar diterima. Midtrans tidak ikut diperbarui.`
+                : `Pesanan ${confirm?.order.order_id} akan dibatalkan di Midtrans dan di sistem. Pelanggan tidak bisa lagi membayar pesanan ini.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Kembali</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={busy}
+              onClick={(e) => {
+                e.preventDefault()
+                if (confirm) runAction(confirm.order.order_id, confirm.action)
+              }}
+            >
+              {busy ? "Memproses..." : confirm?.action === "approve" ? "Ya, setujui" : "Ya, batalkan"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Detail dialog */}
       <Dialog open={!!detailOrder} onOpenChange={(open) => !open && setDetailOrder(null)}>

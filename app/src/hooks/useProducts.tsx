@@ -1,3 +1,4 @@
+import { authHeaders } from "@/lib/auth"
 import {
   createContext,
   useContext,
@@ -94,7 +95,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       // Also send to backend API
       fetch(`/api/products/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify(updates),
       }).catch((err) => {
         console.error("Failed to sync product update to backend:", err)

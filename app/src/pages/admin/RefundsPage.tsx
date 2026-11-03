@@ -1,3 +1,4 @@
+import { authHeaders } from "@/lib/auth"
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -43,7 +44,7 @@ export function RefundsPage() {
   const [processing, setProcessing] = useState(false)
 
   useEffect(() => {
-    fetch("/api/admin/orders")
+    fetch("/api/admin/orders", { headers: authHeaders() })
       .then((res) => res.json())
       .then((data) => {
         const paid = data.filter(
@@ -72,16 +73,27 @@ export function RefundsPage() {
       return
     }
     setProcessing(true)
-    // TODO: Implement Midtrans refund API call
-    setTimeout(() => {
-      toast.success(
-        `Permintaan refund untuk ${refundTarget.order_id} diajukan`,
-        { description: refundReason }
-      )
+    try {
+      const res = await fetch(`/api/admin/orders/${refundTarget.order_id}/action`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ action: "refund", reason: refundReason.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Refund gagal")
+      toast.success(`Refund ${refundTarget.order_id} berhasil`, {
+        description: data.manual
+          ? "Pembayaran manual: kembalikan dana ke pelanggan secara langsung."
+          : "Dana dikembalikan lewat Midtrans.",
+      })
+      setOrders((prev) => prev.filter((o) => o.order_id !== refundTarget.order_id))
       setRefundTarget(null)
       setRefundReason("")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Refund gagal")
+    } finally {
       setProcessing(false)
-    }, 800)
+    }
   }
 
   return (
@@ -99,7 +111,7 @@ export function RefundsPage() {
       {/* Info banner */}
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900/50 dark:bg-amber-950/30">
         <p className="text-sm text-amber-800 dark:text-amber-400">
-          Refund memproses pengembalian dana via Midtrans. Pastikan untuk
+          Refund online diproses via Midtrans (tidak semua metode didukung); pesanan bayar manual hanya ditandai, dana dikembalikan langsung. Pastikan untuk
           mengkonfirmasi alasan refund sebelum menyetujui.
         </p>
       </div>

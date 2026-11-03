@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react"
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom"
 import { GoogleOAuthProvider } from "@react-oauth/google"
 import { Toaster } from "@/components/ui/sonner"
 import { CartProvider } from "@/hooks/useCart"
@@ -29,6 +29,7 @@ const UsersPage = lazy(() => import("@/pages/admin/UsersPage").then((m) => ({ de
 const OrdersPage = lazy(() => import("@/pages/admin/OrdersPage").then((m) => ({ default: m.OrdersPage })))
 const RefundsPage = lazy(() => import("@/pages/admin/RefundsPage").then((m) => ({ default: m.RefundsPage })))
 const CustomersPage = lazy(() => import("@/pages/admin/CustomersPage").then((m) => ({ default: m.CustomersPage })))
+const TrialsPage = lazy(() => import("@/pages/admin/TrialsPage").then((m) => ({ default: m.TrialsPage })))
 const SettingsPage = lazy(() => import("@/pages/admin/SettingsPage").then((m) => ({ default: m.SettingsPage })))
 
 function HomePage() {
@@ -42,15 +43,18 @@ function HomePage() {
   )
 }
 
-function App() {
-  const appContent = (
+function AppLayout() {
+  const location = useLocation()
+  const isAdmin = location.pathname.startsWith("/admin")
+
+  return (
     <AuthProvider>
       <NavProvider>
         <ProductProvider>
           <MasterDataProvider>
             <CartProvider>
               <div className="min-h-screen bg-background text-foreground antialiased">
-                <Header />
+                {!isAdmin && <Header />}
                 <main>
                   <Suspense fallback={<div className="flex min-h-[50vh] items-center justify-center"><span className="size-6 animate-spin rounded-full border-2 border-muted border-t-primary" /></div>}>
                     <Routes>
@@ -64,6 +68,7 @@ function App() {
                         <Route path="orders" element={<OrdersPage />} />
                         <Route path="refunds" element={<RefundsPage />} />
                         <Route path="customers" element={<CustomersPage />} />
+                        <Route path="trials" element={<TrialsPage />} />
                         <Route path="settings" element={<SettingsPage />} />
                       </Route>
                       <Route path="/page/:slug" element={<StaticPage />} />
@@ -75,7 +80,7 @@ function App() {
                     </Routes>
                   </Suspense>
                 </main>
-                <Footer />
+                {!isAdmin && <Footer />}
               </div>
               <Toaster position="bottom-right" richColors theme="light" />
             </CartProvider>
@@ -84,13 +89,15 @@ function App() {
       </NavProvider>
     </AuthProvider>
   )
+}
 
+function App() {
   return (
     <BrowserRouter>
       {GOOGLE_CLIENT_ID ? (
-        <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>{appContent}</GoogleOAuthProvider>
+        <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}><AppLayout /></GoogleOAuthProvider>
       ) : (
-        appContent
+        <AppLayout />
       )}
     </BrowserRouter>
   )
