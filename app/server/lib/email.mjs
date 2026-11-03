@@ -30,7 +30,7 @@ export const COMPANY = {
   email: process.env.MAIL_FROM_ADDRESS || "noreply@rhansoft.com",
   sales: "support@rhansoft.com",
   phone: "+62 813-3333-5871",
-  whatsapp: "6281333355871",
+  whatsapp: "6281333335871",
   address: "Jl. Griya Hamdan Asri No. 09, Arcamanik, Kota Bandung 40195, Indonesia",
   website: "https://www.rhansoft.com",
   logoColor: "#0ea5e9",
