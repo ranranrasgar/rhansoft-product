@@ -21,9 +21,6 @@ import { toast } from "sonner"
 
 const WHATSAPP_NUMBER = "6281333355871"
 
-function formatPrice(n: number) {
-  return n.toLocaleString("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 })
-}
 
 export function TrialRegisterPage() {
   const navigate = useNavigate()
