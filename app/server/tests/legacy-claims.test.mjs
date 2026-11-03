@@ -1,6 +1,6 @@
 import { test } from "node:test"
 import assert from "node:assert/strict"
-import { validateClaim, isLegacyOrder, LEGACY_PREFIX } from "../lib/legacyClaims.mjs"
+import { validateClaim, isLegacyOrder, LEGACY_PREFIX, legacyOrderActionError } from "../lib/legacyClaims.mjs"
 import { normalizeLicenseCode } from "../lib/license.mjs"
 
 const ok = {
@@ -62,4 +62,14 @@ test("isLegacyOrder hanya untuk payment_type legacy", () => {
   assert.equal(isLegacyOrder({ payment_type: "qris" }), false)
   assert.equal(isLegacyOrder({}), false)
   assert.equal(LEGACY_PREFIX, "LEGACY-")
+})
+
+test("legacyOrderActionError: semua aksi Midtrans ditolak 409 untuk pesanan legacy, pesanan biasa lolos", () => {
+  for (const action of ["approve", "cancel", "refund", "sync"]) {
+    const blocked = legacyOrderActionError({ payment_type: "legacy" }, action)
+    assert.equal(blocked.status, 409)
+    assert.match(blocked.error, /Midtrans/)
+  }
+  assert.equal(legacyOrderActionError({ payment_type: "qris" }, "refund"), null)
+  assert.equal(legacyOrderActionError({ payment_type: null }, "sync"), null)
 })

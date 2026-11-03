@@ -34,7 +34,7 @@ import { loadRegistrationGenerator } from "./lib/registrationGenerator.mjs"
 import { registerPaymentResultRoute } from "./lib/paymentResult.mjs"
 import { notifyAdminLicenseRequest, sendLicenseIssuedEmail, notifyAdminLegacyClaim } from "./lib/email.mjs"
 import { registerLegacyClaimRoutes } from "./lib/legacyClaimRoutes.mjs"
-import { isLegacyOrder } from "./lib/legacyClaims.mjs"
+import { isLegacyOrder, legacyOrderActionError } from "./lib/legacyClaims.mjs"
 import { pool, query, queryAll, queryOne, testConnection } from "./db/pool.mjs"
 import {
   registerUser,
@@ -1312,9 +1312,8 @@ app.post("/api/admin/orders/:orderId/action", authMiddleware("admin"), async (re
     const { action } = req.body
     const order = await queryOne(`SELECT * FROM orders WHERE order_id = $1`, [orderId])
     if (!order) return res.status(404).json({ error: "Pesanan tidak ditemukan" })
-    if (isLegacyOrder(order)) {
-      return res.status(409).json({ error: "Pesanan pelanggan lama tidak terhubung ke Midtrans" })
-    }
+    const legacyBlocked = legacyOrderActionError(order, action)
+    if (legacyBlocked) return res.status(legacyBlocked.status).json({ error: legacyBlocked.error })
 
     if (action === "approve") {
       // Konfirmasi pembayaran manual (mis. transfer yang dicek sendiri). Midtrans tidak tahu.

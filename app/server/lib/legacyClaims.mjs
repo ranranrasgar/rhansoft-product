@@ -13,6 +13,11 @@ export function isLegacyOrder(order) {
   return order?.payment_type === "legacy"
 }
 
+/** Aksi admin pesanan (approve/cancel/refund/sync) memakai Midtrans; pesanan lama tidak ada di sana. */
+export function legacyOrderActionError(order, _action) {
+  return isLegacyOrder(order) ? { status: 409, error: "Pesanan pelanggan lama tidak terhubung ke Midtrans" } : null
+}
+
 /** Jumlah komputer 1-20 (angka dalam teks diterima); null bila tidak sah. */
 export function parseQuantity(input) {
   const n = Number(input)
