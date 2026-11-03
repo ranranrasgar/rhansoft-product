@@ -16,14 +16,19 @@ const REQUESTS_PER_HOUR = 10
 /** Permintaan milik pengguna, dikelompokkan per order_item_id. Field sensitif disaring menurut status. */
 export async function fetchMyLicenseRequests(queryAll, userId) {
   const rows = await queryAll(
-    `SELECT id, order_item_id, license_code, status, created_at, registration_number, admin_note
-     FROM license_requests WHERE user_id = $1 ORDER BY created_at, id`,
+    `SELECT lr.id, lr.order_item_id, lr.license_code, lr.status, lr.created_at, lr.registration_number,
+            lr.admin_note, o.transaction_status AS order_status
+     FROM license_requests lr
+     JOIN order_items oi ON oi.id = lr.order_item_id
+     JOIN orders o ON o.id = oi.order_id
+     WHERE lr.user_id = $1 ORDER BY lr.created_at, lr.id`,
     [userId]
   )
   const grouped = {}
   for (const r of rows) {
     const view = { id: r.id, license_code: r.license_code, status: r.status, created_at: r.created_at }
-    if (r.status === "issued") view.registration_number = r.registration_number
+    // Nomor hanya tampil selama pesanan masih lunas (pesanan yang di-refund tidak menyisakan nomor aktif)
+    if (r.status === "issued" && PAID.includes(r.order_status)) view.registration_number = r.registration_number
     if (r.status === "rejected") view.admin_note = r.admin_note
     ;(grouped[r.order_item_id] ||= []).push(view)
   }

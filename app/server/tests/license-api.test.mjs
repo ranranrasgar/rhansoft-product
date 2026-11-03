@@ -279,3 +279,16 @@ test("email gagal tidak membatalkan penerbitan", async () => {
   }
   assert.equal((await requestsOf(user.id, orderItemId))[0].status, "issued")
 })
+
+test("nomor registrasi disembunyikan dari pelanggan bila pesanannya tidak lagi lunas", async () => {
+  const u = await createUser()
+  const { orderId, orderItemId } = await createOrderItem({ userId: u.id })
+  const res = await post(orderItemId, u.token, { license_code: "HIDE-0000-0001" })
+  const id = (await res.json()).id
+  await query(`UPDATE license_requests SET status = 'issued', registration_number = 'TEST-9999' WHERE id = $1`, [id])
+  assert.equal((await requestsOf(u.id, orderItemId))[0].registration_number, "TEST-9999")
+
+  await query(`UPDATE orders SET transaction_status = 'refund' WHERE order_id = $1`, [orderId])
+  const after = (await requestsOf(u.id, orderItemId))[0]
+  assert.equal("registration_number" in after, false)
+})
