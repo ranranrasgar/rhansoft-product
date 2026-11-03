@@ -96,3 +96,18 @@ test("nilai rusak di database: bawaan dipakai, tidak 500", async () => {
   assert.deepEqual(await res.json(), DEFAULT_SHIPPING)
   assert.deepEqual(await loadShippingSettings(queryOne), DEFAULT_SHIPPING)
 })
+
+test("status integrasi: hanya admin, berisi midtrans/email/storage tanpa kunci rahasia", async () => {
+  assert.equal((await api("GET", "/api/admin/settings/integrations")).status, 401)
+  assert.equal((await api("GET", "/api/admin/settings/integrations", user.token)).status, 403)
+  const res = await api("GET", "/api/admin/settings/integrations", admin.token)
+  assert.equal(res.status, 200)
+  const body = await res.json()
+  assert.deepEqual(Object.keys(body).sort(), ["email", "midtrans", "storage"])
+  assert.equal(typeof body.midtrans.configured, "boolean")
+  const raw = JSON.stringify(body)
+  for (const key of ["MIDTRANS_PRODUCTION_SERVER_KEY", "MIDTRANS_SANDBOX_SERVER_KEY", "MAIL_PASSWORD", "SMTP_PASS", "R2_SECRET_ACCESS_KEY"]) {
+    const secret = process.env[key]
+    if (secret) assert.equal(raw.includes(secret), false, `${key} bocor`)
+  }
+})

@@ -1,7 +1,8 @@
 /**
- * Pengaturan sistem yang disimpan di tabel settings. Saat ini hanya ongkos kirim (key "shipping").
+ * Pengaturan sistem: ongkos kirim (tabel settings, key "shipping") dan status integrasi dari .env.
  */
 import { DEFAULT_SHIPPING, normalizeShippingSettings } from "./shippingSettings.mjs"
+import { integrationStatus } from "./integrationStatus.mjs"
 
 const SHIPPING_KEY = "shipping"
 
@@ -42,5 +43,10 @@ export function registerSettingsRoutes(app, { authMiddleware, queryOne }) {
       console.error("save shipping settings error:", err.message)
       res.status(500).json({ error: "Gagal menyimpan pengaturan ongkos kirim" })
     }
+  })
+
+  // Status Midtrans/email/R2 dari .env (tanpa kunci rahasia) untuk halaman Pengaturan
+  app.get("/api/admin/settings/integrations", authMiddleware("admin"), (req, res) => {
+    res.json(integrationStatus())
   })
 }
