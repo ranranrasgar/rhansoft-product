@@ -31,6 +31,7 @@ const RefundsPage = lazy(() => import("@/pages/admin/RefundsPage").then((m) => (
 const CustomersPage = lazy(() => import("@/pages/admin/CustomersPage").then((m) => ({ default: m.CustomersPage })))
 const PaymentResultPage = lazy(() => import("@/pages/PaymentResultPage").then((m) => ({ default: m.PaymentResultPage })))
 const MyOrdersPage = lazy(() => import("@/pages/MyOrdersPage").then((m) => ({ default: m.MyOrdersPage })))
+const ClaimLicensePage = lazy(() => import("@/pages/ClaimLicensePage").then((m) => ({ default: m.ClaimLicensePage })))
 const LicenseRequestsPage = lazy(() => import("@/pages/admin/LicenseRequestsPage").then((m) => ({ default: m.LicenseRequestsPage })))
 const TrialsPage = lazy(() => import("@/pages/admin/TrialsPage").then((m) => ({ default: m.TrialsPage })))
 const SettingsPage = lazy(() => import("@/pages/admin/SettingsPage").then((m) => ({ default: m.SettingsPage })))
@@ -65,6 +66,7 @@ function AppLayout() {
                       <Route path="/product/:id" element={<ProductDetailPage />} />
                       <Route path="/checkout" element={<CheckoutPage />} />
                       <Route path="/akun/pesanan" element={<MyOrdersPage />} />
+                      <Route path="/klaim-lisensi" element={<ClaimLicensePage />} />
                       <Route path="/pembayaran/berhasil" element={<PaymentResultPage outcome="success" />} />
                       <Route path="/pembayaran/gagal" element={<PaymentResultPage outcome="failed" />} />
                       <Route path="/admin" element={<AdminLayout />}>
