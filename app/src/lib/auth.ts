@@ -20,6 +20,28 @@ export type AuthUser = {
 }
 
 const TOKEN_KEY = "rhansoft_token"
+const USER_KEY = "rhansoft_user"
+
+/** Token ditolak server (kedaluwarsa/tidak valid). Beda dari gagal jaringan. */
+export class AuthExpiredError extends Error {}
+
+// Salinan data user supaya halaman langsung tahu sudah login saat dibuka ulang
+export function getCachedUser(): AuthUser | null {
+  try {
+    const raw = localStorage.getItem(USER_KEY)
+    return raw ? (JSON.parse(raw) as AuthUser) : null
+  } catch {
+    return null
+  }
+}
+
+export function setCachedUser(user: AuthUser) {
+  try {
+    localStorage.setItem(USER_KEY, JSON.stringify(user))
+  } catch {
+    // ignore
+  }
+}
 
 // ── Token management ──────────────────────────────────────────
 export function getToken(): string | null {
@@ -32,6 +54,7 @@ export function setToken(token: string) {
 
 export function clearToken() {
   localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(USER_KEY)
   try {
     googleLogout()
   } catch {
@@ -83,8 +106,11 @@ export async function fetchCurrentUser(token: string): Promise<AuthUser> {
   const res = await fetch(`${AUTH_API_BASE}/api/auth/me`, {
     headers: { Authorization: `Bearer ${token}` },
   })
+  if (res.status === 401) {
+    throw new AuthExpiredError("Session expired")
+  }
   if (!res.ok) {
-    throw new Error("Session expired")
+    throw new Error(`Gagal memeriksa sesi (${res.status})`)
   }
   const data = await res.json()
   return data.user

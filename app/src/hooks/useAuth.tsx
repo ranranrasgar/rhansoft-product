@@ -13,6 +13,9 @@ import {
   setToken,
   clearToken,
   fetchCurrentUser,
+  getCachedUser,
+  setCachedUser,
+  AuthExpiredError,
 } from "@/lib/auth"
 
 type AuthContextValue = {
@@ -28,10 +31,14 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null)
-  const [loading, setLoading] = useState(true)
+  // Sesi dipulihkan dari penyimpanan browser: tetap login sampai user menekan Keluar
+  const [user, setUser] = useState<AuthUser | null>(() =>
+    getToken() ? getCachedUser() : null
+  )
+  const [loading, setLoading] = useState(() => Boolean(getToken()) && !getCachedUser())
 
-  // On mount: check if token exists, fetch user
+  // Validasi ulang di latar belakang. Hanya keluar otomatis kalau server menolak token (401);
+  // gagal jaringan atau server sedang restart tidak boleh memutus sesi.
   useEffect(() => {
     const token = getToken()
     if (!token) {
@@ -40,16 +47,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     fetchCurrentUser(token)
-      .then((u) => setUser(u))
-      .catch(() => {
-        clearToken()
-        setUser(null)
+      .then((u) => {
+        setUser(u)
+        setCachedUser(u)
+      })
+      .catch((err) => {
+        if (err instanceof AuthExpiredError) {
+          clearToken()
+          setUser(null)
+        }
       })
       .finally(() => setLoading(false))
   }, [])
 
   const login = useCallback((u: AuthUser, token: string) => {
     setToken(token)
+    setCachedUser(u)
     setUser(u)
   }, [])
 

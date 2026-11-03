@@ -16,7 +16,7 @@ dotenv.config({ path: path.resolve(__dirname, "../.env") })
 
 // ── Configuration ──────────────────────────────────────────────
 const JWT_SECRET = process.env.JWT_SECRET || "rhansoft-dev-secret-change-me"
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "7d"
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || "365d"
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || ""
 
 const googleClient = GOOGLE_CLIENT_ID ? new OAuth2Client(GOOGLE_CLIENT_ID) : null

@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { NavLink, Outlet, useNavigate } from "react-router-dom"
+import { NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
@@ -38,15 +38,25 @@ const navItems: NavItem[] = [
 ]
 
 export function AdminLayout() {
-  const { user, logout, isAdmin, canEdit } = useAuth()
+  const { user, loading, logout, isAdmin, canEdit } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
 
   // Guard: hanya admin & editor yang bisa akses
-  if (!user || !canEdit) {
-    navigate("/login")
-    return null
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <span className="size-6 animate-spin rounded-full border-2 border-muted border-t-primary" />
+      </div>
+    )
+  }
+  if (!user) {
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />
+  }
+  if (!canEdit) {
+    return <Navigate to="/" replace />
   }
 
   const visibleItems = navItems.filter((item) =>
