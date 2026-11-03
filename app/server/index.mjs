@@ -1015,6 +1015,16 @@ app.put("/api/products/:id", authMiddleware("editor"), async (req, res) => {
 
     await client.query("BEGIN")
 
+    // Update sebagian (mis. hanya { featured }) tidak boleh menimpa field lain dengan null
+    const curRes = await client.query("SELECT * FROM products WHERE id = $1", [id])
+    const cur = curRes.rows[0]
+    if (!cur) {
+      await client.query("ROLLBACK")
+      return res.status(404).json({ error: "Produk tidak ditemukan" })
+    }
+    const pick = (v, c) => (v === undefined ? c : v)
+    const json = (v) => (v == null ? null : JSON.stringify(v))
+
     await client.query(
       `UPDATE products SET
         name = $1, price = $2, original_price = $3, description = $4,
@@ -1023,28 +1033,28 @@ app.put("/api/products/:id", authMiddleware("editor"), async (req, res) => {
         gallery = $14, featured = $15, updated_at = NOW()
        WHERE id = $16`,
       [
-        name,
-        price,
-        originalPrice || null,
-        description,
-        image,
-        badge || null,
-        version,
-        platform,
-        license,
-        downloadSize,
-        color,
-        downloadLinks ? JSON.stringify(downloadLinks) : null,
-        installTutorial || null,
-        gallery ? JSON.stringify(gallery) : null,
-        featured === true || featured === "true",
+        pick(name, cur.name),
+        pick(price, cur.price),
+        originalPrice === undefined ? cur.original_price : originalPrice || null,
+        pick(description, cur.description),
+        pick(image, cur.image),
+        badge === undefined ? cur.badge : badge || null,
+        pick(version, cur.version),
+        pick(platform, cur.platform),
+        pick(license, cur.license),
+        pick(downloadSize, cur.download_size),
+        pick(color, cur.color),
+        downloadLinks === undefined ? json(cur.download_links) : json(downloadLinks || null),
+        installTutorial === undefined ? cur.install_tutorial : installTutorial || null,
+        gallery === undefined ? json(cur.gallery) : json(gallery || null),
+        featured === undefined ? cur.featured : featured === true || featured === "true",
         id,
       ]
     )
 
     // Replace specs
-    await client.query("DELETE FROM product_specs WHERE product_id = $1", [id])
-    if (specs && Array.isArray(specs)) {
+    if (Array.isArray(specs)) {
+      await client.query("DELETE FROM product_specs WHERE product_id = $1", [id])
       for (let j = 0; j < specs.length; j++) {
         await client.query(
           `INSERT INTO product_specs (product_id, label, value, sort_order) VALUES ($1, $2, $3, $4)`,
@@ -1054,8 +1064,8 @@ app.put("/api/products/:id", authMiddleware("editor"), async (req, res) => {
     }
 
     // Replace highlights
-    await client.query("DELETE FROM product_highlights WHERE product_id = $1", [id])
-    if (highlights && Array.isArray(highlights)) {
+    if (Array.isArray(highlights)) {
+      await client.query("DELETE FROM product_highlights WHERE product_id = $1", [id])
       for (let j = 0; j < highlights.length; j++) {
         await client.query(
           `INSERT INTO product_highlights (product_id, highlight, sort_order) VALUES ($1, $2, $3)`,
