@@ -133,12 +133,19 @@ export function CheckoutPage() {
   // Pengaturan ongkos kirim dari admin (perkiraan tampilan; total resmi dihitung server)
   const [shippingConfig, setShippingConfig] = useState<ShippingConfig | null>(null)
   const [province, setProvince] = useState("")
-  useEffect(() => {
+  const [shippingConfigError, setShippingConfigError] = useState(false)
+  // Tombol Bayar menunggu konfigurasi ini, agar total yang tampil sama dengan yang ditagih
+  const loadShippingConfig = () => {
+    setShippingConfigError(false)
     fetch("/api/shipping-config")
-      .then((res) => (res.ok ? res.json() : null))
+      .then((res) => {
+        if (!res.ok) throw new Error()
+        return res.json()
+      })
       .then((conf) => setShippingConfig(conf))
-      .catch(() => {})
-  }, [])
+      .catch(() => setShippingConfigError(true))
+  }
+  useEffect(loadShippingConfig, [])
   const needsProvince = Boolean(shippingConfig?.enabled && shippingConfig.mode === "province")
 
   const useMidtransDefault = enabledMethods !== null && enabledMethods.length === 0
@@ -275,6 +282,8 @@ export function CheckoutPage() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Terjadi kesalahan"
       toast.error("Error pembayaran", { description: msg })
+      // Server menolak bila total berubah (ongkir/harga diperbarui): muat ulang pengaturan agar total diperbarui
+      loadShippingConfig()
     } finally {
       setProcessing(false)
     }
@@ -551,11 +560,20 @@ export function CheckoutPage() {
               <span className="text-2xl font-semibold">{formatPrice(total)}</span>
             </div>
 
+            {shippingConfigError && (
+              <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+                Gagal memuat ongkos kirim, jadi total belum bisa dipastikan.{" "}
+                <button type="button" className="font-semibold underline" onClick={loadShippingConfig}>
+                  Coba lagi
+                </button>
+              </div>
+            )}
+
             <Button
               size="lg"
               className="mt-6 w-full rounded-full"
               onClick={handlePay}
-              disabled={processing}
+              disabled={processing || shippingConfig === null}
             >
               {processing ? (
                 <>

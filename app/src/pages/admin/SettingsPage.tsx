@@ -85,15 +85,20 @@ function ShippingSection() {
     setRates(Object.fromEntries(Object.entries(s.province_rates).map(([k, v]) => [k, String(v)])))
   }
 
-  useEffect(() => {
+  // Bila gagal dimuat, form disembunyikan: menyimpan nilai awal akan menimpa pengaturan yang sebenarnya
+  const [loadError, setLoadError] = useState(false)
+  const load = () => {
+    setLoading(true)
+    setLoadError(false)
     fetch("/api/admin/settings/shipping", { headers: authHeaders() })
       .then(async (res) => {
         if (!res.ok) throw new Error()
         apply(await res.json())
       })
-      .catch(() => toast.error("Gagal memuat pengaturan ongkos kirim"))
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false))
-  }, [])
+  }
+  useEffect(load, [])
 
   const save = async () => {
     setSaving(true)
@@ -134,6 +139,13 @@ function ShippingSection() {
     >
       {loading ? (
         <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      ) : loadError ? (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          Gagal memuat pengaturan ongkos kirim. Pengaturan tidak bisa diubah sampai berhasil dimuat.
+          <Button size="sm" variant="outline" onClick={load}>
+            Coba lagi
+          </Button>
+        </div>
       ) : (
         <>
           <div className="flex items-center justify-between">
