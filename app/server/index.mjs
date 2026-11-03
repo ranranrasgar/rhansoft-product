@@ -665,6 +665,7 @@ app.post("/api/create-transaction", authMiddleware(), async (req, res) => {
       customer,
       items: requestedItems,
       payment_method,
+      province,
     } = req.body
 
     // Validate
@@ -718,8 +719,11 @@ app.post("/api/create-transaction", authMiddleware(), async (req, res) => {
     })
 
     const subtotal = items.reduce((sum, it) => sum + it.price * it.quantity, 0)
-    // Satu sumber perhitungan (lib/pricing.mjs); harus sama dengan CheckoutPage.tsx
-    const { shipping: shippingCost, tax: taxAmount, total: totalAmount } = calculateOrderTotals(subtotal)
+    // Ongkir dari pengaturan admin (shipping_cost dari browser diabaikan); total dari lib/pricing.mjs
+    const shippingCalc = calculateShipping(await loadShippingSettings(queryOne), province)
+    if ("error" in shippingCalc) return res.status(400).json({ error: shippingCalc.error })
+    const shippingLabel = shippingCalc.label
+    const { shipping: shippingCost, tax: taxAmount, total: totalAmount } = calculateOrderTotals(subtotal, shippingCalc.amount)
 
     if (Number(req.body.gross_amount) !== totalAmount) {
       console.warn(
@@ -835,7 +839,7 @@ app.post("/api/create-transaction", authMiddleware(), async (req, res) => {
           category: item.category,
         })),
         ...(shippingCost > 0
-          ? [{ id: "SHIPPING", name: "Ongkos Kirim", price: shippingCost, quantity: 1, brand: "Rhansoft", category: "Shipping" }]
+          ? [{ id: "SHIPPING", name: shippingLabel.slice(0, 50), price: shippingCost, quantity: 1, brand: "Rhansoft", category: "Shipping" }]
           : []),
         ...(taxAmount > 0
           ? [{ id: "TAX", name: "PPN 11%", price: taxAmount, quantity: 1, brand: "Rhansoft", category: "Tax" }]
