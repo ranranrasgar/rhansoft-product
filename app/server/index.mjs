@@ -645,7 +645,7 @@ app.get("/api/hero-slides", async (req, res) => {
 })
 
 // ── Create Midtrans Transaction ─────────────────────────────────
-app.post("/api/create-transaction", async (req, res) => {
+app.post("/api/create-transaction", authMiddleware(), async (req, res) => {
   const client = await pool.connect()
 
   try {
@@ -705,10 +705,10 @@ app.post("/api/create-transaction", async (req, res) => {
 
     const orderRow = await client.query(
       `INSERT INTO orders
-        (order_id, customer_id, gross_amount, shipping_cost, tax, total_amount,
+        (order_id, customer_id, user_id, gross_amount, shipping_cost, tax, total_amount,
          payment_method, transaction_status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending') RETURNING id`,
-      [order_id, customerId, gross_amount, shippingCost, taxAmount, totalAmount, payment_method]
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending') RETURNING id`,
+      [order_id, customerId, req.user.id, gross_amount, shippingCost, taxAmount, totalAmount, payment_method]
     )
 
     const orderIdDb = orderRow.rows[0].id
@@ -1177,6 +1177,34 @@ async function sendOrderEmailFor(orderId) {
 
 const isPaidStatus = (s) => s === "settlement" || s === "capture"
 
+// Ambil status terbaru dari Midtrans, simpan, dan kirim email lisensi bila baru lunas
+async function syncOrderFromMidtrans(order) {
+  const s = await snap.transaction.status(order.order_id)
+  const paid = isPaidStatus(s.transaction_status)
+  await query(
+    `UPDATE orders SET transaction_status = $1, payment_type = $2,
+       paid_at = COALESCE(paid_at, $3), transaction_id = $4
+     WHERE order_id = $5`,
+    [
+      s.transaction_status,
+      s.payment_type,
+      paid ? s.settlement_time || new Date().toISOString() : null,
+      s.transaction_id,
+      order.order_id,
+    ]
+  )
+  let emailSent = false
+  if (paid && !isPaidStatus(order.transaction_status) && s.fraud_status !== "deny") {
+    try {
+      await sendOrderEmailFor(order.order_id)
+      emailSent = true
+    } catch (e) {
+      console.error("⚠️ Sync: failed to send email:", e.message)
+    }
+  }
+  return { status: s.transaction_status, emailSent }
+}
+
 async function logOrderAction(order, status, paymentType, message, admin) {
   await query(
     `INSERT INTO payment_notifications
@@ -1273,30 +1301,7 @@ app.post("/api/admin/orders/:orderId/action", authMiddleware("admin"), async (re
     }
 
     if (action === "sync") {
-      const s = await snap.transaction.status(orderId)
-      const paid = isPaidStatus(s.transaction_status)
-      await query(
-        `UPDATE orders SET transaction_status = $1, payment_type = $2,
-           paid_at = COALESCE(paid_at, $3), transaction_id = $4
-         WHERE order_id = $5`,
-        [
-          s.transaction_status,
-          s.payment_type,
-          paid ? s.settlement_time || new Date().toISOString() : null,
-          s.transaction_id,
-          orderId,
-        ]
-      )
-      let emailSent = false
-      if (paid && !isPaidStatus(order.transaction_status) && s.fraud_status !== "deny") {
-        try {
-          await sendOrderEmailFor(orderId)
-          emailSent = true
-        } catch (e) {
-          console.error("⚠️ Sync: failed to send email:", e.message)
-        }
-      }
-      return res.json({ status: s.transaction_status, emailSent })
+      return res.json(await syncOrderFromMidtrans(order))
     }
 
     res.status(400).json({ error: "Aksi tidak dikenal" })
@@ -1306,7 +1311,113 @@ app.post("/api/admin/orders/:orderId/action", authMiddleware("admin"), async (re
   }
 })
 
-// ── Helper: enabled payments by method ──────────────────────────
+// ── Pesanan saya (pelanggan login) ──────────────────────────────
+const SNAP_TOKEN_TTL_MS = 24 * 60 * 60 * 1000 // masa berlaku token Snap bawaan Midtrans
+
+async function getOwnOrder(orderId, userId) {
+  return queryOne(
+    `SELECT o.*, c.first_name, c.last_name, c.email, c.phone
+     FROM orders o LEFT JOIN customers c ON o.customer_id = c.id
+     WHERE o.order_id = $1 AND o.user_id = $2`,
+    [orderId, userId]
+  )
+}
+
+app.get("/api/my/orders", authMiddleware(), async (req, res) => {
+  try {
+    const orders = await queryAll(
+      `SELECT order_id, created_at, paid_at, total_amount, transaction_status, payment_type
+       FROM orders WHERE user_id = $1 ORDER BY created_at DESC`,
+      [req.user.id]
+    )
+    const items = await queryAll(
+      `SELECT o.order_id, oi.product_id, oi.product_name, oi.price, oi.quantity,
+              p.download_links, p.install_tutorial
+       FROM order_items oi
+       JOIN orders o ON oi.order_id = o.id
+       LEFT JOIN products p ON oi.product_id = p.id
+       WHERE o.user_id = $1
+       ORDER BY oi.id`,
+      [req.user.id]
+    )
+    res.json(
+      orders.map((o) => {
+        const paid = isPaidStatus(o.transaction_status)
+        return {
+          ...o,
+          items: items
+            .filter((i) => i.order_id === o.order_id)
+            .map((i) => ({
+              product_id: i.product_id,
+              product_name: i.product_name,
+              price: i.price,
+              quantity: i.quantity,
+              // Link unduhan hanya untuk pesanan yang sudah lunas
+              download_links: paid ? i.download_links || [] : [],
+              install_tutorial: paid ? i.install_tutorial || null : null,
+            })),
+        }
+      })
+    )
+  } catch (err) {
+    console.error("GET /api/my/orders error:", err.message)
+    res.status(500).json({ error: "Gagal memuat pesanan" })
+  }
+})
+
+// Token pembayaran untuk melanjutkan pesanan yang belum dibayar
+app.post("/api/my/orders/:orderId/pay", authMiddleware(), async (req, res) => {
+  try {
+    const order = await getOwnOrder(req.params.orderId, req.user.id)
+    if (!order) return res.status(404).json({ error: "Pesanan tidak ditemukan" })
+    if (order.transaction_status !== "pending") {
+      return res.status(409).json({ error: "Pesanan ini tidak menunggu pembayaran" })
+    }
+    const age = Date.now() - new Date(order.created_at).getTime()
+    if (!order.snap_token || age > SNAP_TOKEN_TTL_MS) {
+      return res.status(409).json({ error: "Waktu pembayaran pesanan ini sudah habis. Silakan pesan ulang." })
+    }
+    res.json({
+      token: order.snap_token,
+      client_key: CLIENT_KEY,
+      snap_url: IS_PRODUCTION
+        ? "https://app.midtrans.com/snap/snap.js"
+        : "https://app.sandbox.midtrans.com/snap/snap.js",
+    })
+  } catch (err) {
+    res.status(500).json({ error: "Gagal menyiapkan pembayaran" })
+  }
+})
+
+// Cek status terbaru ke Midtrans (mis. setelah membayar)
+app.post("/api/my/orders/:orderId/refresh", authMiddleware(), async (req, res) => {
+  try {
+    const order = await getOwnOrder(req.params.orderId, req.user.id)
+    if (!order) return res.status(404).json({ error: "Pesanan tidak ditemukan" })
+    res.json(await syncOrderFromMidtrans(order))
+  } catch (err) {
+    // 404 dari Midtrans = pelanggan belum memilih metode bayar; status tetap
+    res.status(502).json({ error: "Belum ada pembaruan dari Midtrans" })
+  }
+})
+
+// Kirim ulang email lisensi/unduhan ke email akun untuk pesanan yang sudah lunas
+app.post("/api/my/orders/:orderId/resend-email", authMiddleware(), async (req, res) => {
+  try {
+    const order = await getOwnOrder(req.params.orderId, req.user.id)
+    if (!order) return res.status(404).json({ error: "Pesanan tidak ditemukan" })
+    if (!isPaidStatus(order.transaction_status)) {
+      return res.status(409).json({ error: "Email lisensi hanya untuk pesanan yang sudah lunas" })
+    }
+    await sendOrderEmailFor(order.order_id)
+    res.json({ status: "ok" })
+  } catch (err) {
+    console.error("my resend-email error:", err.message)
+    res.status(500).json({ error: "Gagal mengirim email" })
+  }
+})
+
+// ── Helper: enabled payments by method ────────────────────────────
 function getEnabledPayments(method) {
   switch (method) {
     case "card":

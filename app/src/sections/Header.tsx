@@ -23,6 +23,7 @@ import {
   LogOut,
   LayoutDashboard,
   UserCircle,
+  Package,
 } from "lucide-react"
 import { toast } from "sonner"
 import { useCart } from "@/hooks/useCart"
@@ -224,6 +225,10 @@ export function Header() {
                     <DropdownMenuItem onClick={() => routerNavigate("/admin")}>
                       <LayoutDashboard className="size-4" />
                       Admin Dashboard
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => routerNavigate("/akun/pesanan")}>
+                      <Package className="size-4" />
+                      Pesanan Saya
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => routerNavigate("/profile")}>
                       <UserCircle className="size-4" />

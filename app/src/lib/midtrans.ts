@@ -1,3 +1,4 @@
+import { authHeaders } from "@/lib/auth"
 /**
  * Midtrans Snap.js integration helper.
  *
@@ -158,7 +159,7 @@ export async function requestSnapToken(
 ): Promise<{ token: string; redirect_url: string; snap_url?: string; client_key?: string }> {
   const res = await fetch("/api/create-transaction", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(params),
   })
 

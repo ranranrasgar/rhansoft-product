@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react"
-import { useNavigate, Link } from "react-router-dom"
+import { useNavigate, Link, Navigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,6 +17,7 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { useCart } from "@/hooks/useCart"
+import { useAuth } from "@/hooks/useAuth"
 import {
   loadSnapScript,
   requestSnapToken,
@@ -76,6 +77,7 @@ const trustBadges = [
 export function CheckoutPage() {
   const navigate = useNavigate()
   const { items, subtotal, clear, itemCount } = useCart()
+  const { user, loading: authLoading } = useAuth()
 
   const [shipping, setShipping] = useState({
     firstName: "",
@@ -93,6 +95,17 @@ export function CheckoutPage() {
   const [enabledMethods, setEnabledMethods] = useState<PaymentMethod[] | null>(null)
   const [processing, setProcessing] = useState(false)
   const [snapReady, setSnapReady] = useState(false)
+
+  // Isi otomatis nama dan email dari akun yang login
+  useEffect(() => {
+    if (!user) return
+    setShipping((s) => ({
+      ...s,
+      firstName: s.firstName || user.first_name,
+      lastName: s.lastName || user.last_name,
+      email: s.email || user.email,
+    }))
+  }, [user])
 
   // Hanya tampilkan metode yang aktif di server (sesuai channel Midtrans)
   useEffect(() => {
@@ -206,15 +219,20 @@ export function CheckoutPage() {
           description: `Pesanan ${orderId} dikonfirmasi`,
         })
         clear()
-        navigate("/")
+        navigate("/akun/pesanan")
       } else if (result.status === "pending") {
         toast.info("Pembayaran tertunda", {
           description: "Selesaikan pembayaran dalam batas waktu yang ditentukan",
         })
+        clear()
+        navigate("/akun/pesanan")
       } else if (result.status === "closed") {
-        toast.warning("Pembayaran dibatalkan", {
-          description: "Anda menutup jendela pembayaran. Coba lagi saat siap.",
+        // Pesanan sudah tercatat; lanjutkan pembayaran dari Pesanan Saya (tanpa membuat pesanan ganda)
+        toast.warning("Pembayaran belum selesai", {
+          description: "Pesanan Anda tersimpan. Lanjutkan pembayaran dari halaman Pesanan Saya.",
         })
+        clear()
+        navigate("/akun/pesanan")
       } else {
         toast.error("Pembayaran gagal", {
           description: "Silakan coba metode pembayaran lain",
@@ -226,6 +244,14 @@ export function CheckoutPage() {
     } finally {
       setProcessing(false)
     }
+  }
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <span className="size-6 animate-spin rounded-full border-2 border-muted border-t-primary" />
+      </div>
+    )
   }
 
   if (items.length === 0) {
@@ -240,6 +266,11 @@ export function CheckoutPage() {
         </Button>
       </div>
     )
+  }
+
+  // Wajib login agar pesanan terhubung ke akun (riwayat, bayar ulang, lisensi)
+  if (!user) {
+    return <Navigate to="/login" replace state={{ from: "/checkout" }} />
   }
 
   return (
