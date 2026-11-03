@@ -367,11 +367,11 @@ export function TrialRegisterPage() {
             />
             <span className="text-sm text-muted-foreground">
               Saya menyatakan data di atas benar dan menyetujui{" "}
-              <Link to="/page/syarat-ketentuan" className="font-medium text-primary hover:underline">
+              <Link to="/page/terms-of-use" className="font-medium text-primary hover:underline">
                 Syarat & Ketentuan
               </Link>{" "}
               serta{" "}
-              <Link to="/page/privasi" className="font-medium text-primary hover:underline">
+              <Link to="/page/privacy-policy" className="font-medium text-primary hover:underline">
                 Kebijakan Privasi
               </Link>{" "}
               Rhansoft. Saya mengizinkan Rhansoft mengirimkan email & WhatsApp konfirmasi.
