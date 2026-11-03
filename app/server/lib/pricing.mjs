@@ -40,6 +40,13 @@ export function priceOrder({ items, settings, province }) {
   return { ...totals, shippingLabel: ship.label, itemDetails }
 }
 
+/** Nominal dari Midtrans berupa teks "4440.00"; kolom rupiah di database BIGINT. null bila bukan angka. */
+export function midtransAmount(value) {
+  if (value === undefined || value === null || value === "") return null
+  const n = Number(value)
+  return Number.isFinite(n) ? Math.round(n) : null
+}
+
 /** Total yang dilihat pelanggan harus sama dengan hitungan server; null bila cocok atau klien tidak mengirim total. */
 export function checkClientTotal(clientGross, serverTotal) {
   if (clientGross === undefined || clientGross === null) return null

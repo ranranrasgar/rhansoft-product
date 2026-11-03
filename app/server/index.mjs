@@ -17,7 +17,7 @@
  *   GET  /api/orders                     — list all orders
  */
 import crypto from "crypto"
-import { priceOrder, checkClientTotal } from "./lib/pricing.mjs"
+import { priceOrder, checkClientTotal, midtransAmount } from "./lib/pricing.mjs"
 import { registerSettingsRoutes, loadShippingSettings } from "./lib/settingsRoutes.mjs"
 import path from "path"
 import { fileURLToPath } from "url"
@@ -940,7 +940,7 @@ const handleWebhook = async (req, res) => {
 
   const known = await queryOne("SELECT total_amount FROM orders WHERE order_id = $1", [notif.order_id])
   if (!known) return res.status(200).json({ status: "ignored" })
-  if (Math.round(Number(notif.gross_amount)) !== Number(known.total_amount)) {
+  if (midtransAmount(notif.gross_amount) !== Number(known.total_amount)) {
     console.error(
       `🚨 Webhook ditolak: nominal ${notif.gross_amount} tidak sama dengan pesanan ${notif.order_id} (${known.total_amount})`
     )
@@ -968,7 +968,7 @@ const handleWebhook = async (req, res) => {
         notif.transaction_id,
         notif.transaction_status,
         notif.payment_type,
-        notif.gross_amount,
+        midtransAmount(notif.gross_amount), // "4440.00" ditolak kolom BIGINT
         notif.fraud_status,
         notif.status_code,
         notif.status_message,
