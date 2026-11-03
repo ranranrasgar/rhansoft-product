@@ -72,7 +72,8 @@ export function DashboardPage() {
 
     fetch("/api/admin/orders", { headers: authHeaders() })
       .then((res) => res.json())
-      .then(setOrders)
+      // Pesanan pelanggan lama (Rp 0) bukan penjualan: tidak ikut jumlah pesanan maupun pendapatan
+      .then((rows) => setOrders(rows.filter((o: { payment_type?: string | null }) => o.payment_type !== "legacy")))
       .catch(() => {})
   }, [isAdmin])
 

@@ -14,6 +14,7 @@ import {
 import { Calculator, Copy, KeyRound, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { authHeaders } from "@/lib/auth"
+import { LegacyClaimsPanel } from "./LegacyClaimsPanel"
 
 type Status = "pending" | "issued" | "rejected"
 
@@ -59,6 +60,8 @@ async function copy(text: string) {
 }
 
 export function LicenseRequestsPage() {
+  const [section, setSection] = useState<"requests" | "claims">("requests")
+  const [claimCount, setClaimCount] = useState(0)
   const [tab, setTab] = useState<Status>("pending")
   const [items, setItems] = useState<LicenseRequest[]>([])
   const [pendingCount, setPendingCount] = useState(0)
@@ -71,6 +74,14 @@ export function LicenseRequestsPage() {
   const [generatorAvailable, setGeneratorAvailable] = useState(false)
   const [generated, setGenerated] = useState<Record<number, GeneratedNumber[]>>({})
   const [generating, setGenerating] = useState<number | null>(null)
+
+  // Lencana jumlah klaim pelanggan lama yang menunggu, tampil sebelum tabnya dibuka
+  useEffect(() => {
+    fetch("/api/admin/legacy-claims?status=pending", { headers: authHeaders() })
+      .then((res) => (res.ok ? res.json() : []))
+      .then((rows: unknown[]) => setClaimCount(rows.length))
+      .catch(() => {})
+  }, [])
 
   // Tombol Generate hanya muncul bila rumus terpasang di server (berkas pribadi di luar git)
   useEffect(() => {
@@ -112,9 +123,10 @@ export function LicenseRequestsPage() {
     }
   }, [tab])
 
+  // Muat ulang saat kembali dari tab klaim: persetujuan klaim menambah permintaan baru
   useEffect(() => {
-    load()
-  }, [load])
+    if (section === "requests") load()
+  }, [load, section])
 
   const send = async (id: number, action: "issue" | "reject", body: object, okMessage: string) => {
     setBusy(id)
@@ -150,6 +162,31 @@ export function LicenseRequestsPage() {
         </p>
       </div>
 
+      <div className="flex gap-1 border-b border-border">
+        {(
+          [
+            ["requests", "Permintaan nomor", pendingCount],
+            ["claims", "Klaim pelanggan lama", claimCount],
+          ] as const
+        ).map(([value, label, count]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setSection(value)}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium ${
+              section === value ? "border-primary text-foreground" : "border-transparent text-muted-foreground"
+            }`}
+          >
+            {label}
+            {count > 0 && <Badge className="ml-1.5 px-1.5">{count}</Badge>}
+          </button>
+        ))}
+      </div>
+
+      {section === "claims" ? (
+        <LegacyClaimsPanel onPendingCount={setClaimCount} />
+      ) : (
+      <>
       <div className="flex gap-2">
         {TABS.map((t) => (
           <Button
@@ -321,6 +358,8 @@ export function LicenseRequestsPage() {
           })
         )}
       </div>
+      </>
+      )}
 
       <Dialog open={!!rejecting} onOpenChange={(open) => !open && setRejecting(null)}>
         <DialogContent>

@@ -34,11 +34,23 @@ export async function createOrderItem({ userId, quantity = 1, status = "settleme
   return { orderId, orderItemId: item.id }
 }
 
+/** Produk uji 'lictest-product' (dibuat sekali, dipakai ulang). */
+export async function createProduct() {
+  await query(
+    `INSERT INTO products (id, name, price) VALUES ('lictest-product', 'Produk Uji', 1000) ON CONFLICT (id) DO NOTHING`
+  )
+  return "lictest-product"
+}
+
 /** Hapus semua data uji (pesanan -> item -> permintaan lisensi ikut terhapus lewat cascade). */
 export async function cleanupFixtures() {
+  const testUsers = `SELECT id FROM users WHERE email LIKE 'lictest-%'`
+  await query(`DELETE FROM legacy_claims WHERE user_id IN (${testUsers})`)
   await query(`DELETE FROM orders WHERE order_id LIKE 'LICTEST-%'`)
+  await query(`DELETE FROM orders WHERE order_id LIKE 'LEGACY-%' AND user_id IN (${testUsers})`)
   await query(`DELETE FROM customers WHERE email LIKE 'lictest-%'`)
   await query(`DELETE FROM users WHERE email LIKE 'lictest-%'`)
+  await query(`DELETE FROM products WHERE id = 'lictest-product'`)
 }
 
 export async function closePool() {

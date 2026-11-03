@@ -313,6 +313,11 @@ export function OrdersPage() {
                     <Badge variant={statusVariant(o.transaction_status)}>
                       {o.transaction_status}
                     </Badge>
+                    {o.payment_type === "legacy" && (
+                      <Badge variant="outline" className="ml-1">
+                        Pelanggan lama
+                      </Badge>
+                    )}
                   </td>
                   <td className="hidden px-4 py-3 text-xs text-muted-foreground md:table-cell">
                     {new Date(o.created_at).toLocaleDateString("id-ID", {
@@ -341,15 +346,18 @@ export function OrdersPage() {
                       >
                         <Mail className="size-4" />
                       </Button>
-                      <Button
-                        size="icon-sm"
-                        variant="ghost"
-                        disabled={busy}
-                        onClick={() => runAction(o.order_id, "sync")}
-                        title="Cek status ke Midtrans"
-                      >
-                        <RefreshCw className="size-4" />
-                      </Button>
+                      {/* Pesanan pelanggan lama tidak ada di Midtrans */}
+                      {o.payment_type !== "legacy" && (
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          disabled={busy}
+                          onClick={() => runAction(o.order_id, "sync")}
+                          title="Cek status ke Midtrans"
+                        >
+                          <RefreshCw className="size-4" />
+                        </Button>
+                      )}
                       {o.transaction_status === "pending" && (
                         <>
                           <Button

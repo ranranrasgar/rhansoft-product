@@ -48,9 +48,10 @@ export function RefundsPage() {
       .then((res) => res.json())
       .then((data) => {
         const paid = data.filter(
-          (o: Order) =>
-            o.transaction_status === "settlement" ||
-            o.transaction_status === "capture"
+          (o: Order & { payment_type?: string | null }) =>
+            // Pesanan pelanggan lama (Rp 0, tanpa Midtrans) tidak bisa direfund
+            o.payment_type !== "legacy" &&
+            (o.transaction_status === "settlement" || o.transaction_status === "capture")
         )
         setOrders(paid)
       })
