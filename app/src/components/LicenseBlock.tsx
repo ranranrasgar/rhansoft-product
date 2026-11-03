@@ -66,69 +66,83 @@ export function LicenseBlock({ orderItemId, quantity, requests, onChanged }: Pro
   }
 
   return (
-    <div className="mt-3 rounded-xl border border-border bg-muted/30 p-3">
-      <p className="flex items-center gap-1.5 text-xs font-semibold">
+    <div className="text-xs">
+      <p className="flex items-center gap-1.5 font-semibold">
         <KeyRound className="size-3.5" />
-        Nomor registrasi lisensi
+        Nomor registrasi
         <span className="font-normal text-muted-foreground">
           ({used} dari {quantity} terpakai)
         </span>
       </p>
 
       {requests.length > 0 && (
-        <ul className="mt-2 space-y-2">
-          {requests.map((r) => {
-            const st = STATUS_LABEL[r.status]
-            return (
-              <li key={r.id} className="rounded-lg border border-border bg-card p-2 text-xs">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono break-all">{r.license_code}</span>
-                  <Badge variant={st.variant}>{st.label}</Badge>
-                </div>
-                {r.status === "issued" && r.registration_number && (
-                  <div className="mt-2 flex items-center justify-between gap-2 rounded-md bg-primary/10 px-2 py-1.5">
-                    <span className="font-mono text-sm font-bold break-all">{r.registration_number}</span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-7 shrink-0 rounded-full"
-                      onClick={() => copy(r.registration_number!)}
-                    >
-                      <Copy className="mr-1 size-3" />
-                      Salin
-                    </Button>
-                  </div>
-                )}
-                {r.status === "rejected" && r.admin_note && (
-                  <p className="mt-1 text-destructive">Alasan: {r.admin_note}</p>
-                )}
-              </li>
-            )
-          })}
-        </ul>
+        <table className="mt-1.5 w-full">
+          <thead className="text-left text-muted-foreground">
+            <tr className="border-b border-border">
+              <th className="py-1 pr-2 font-normal">Kode lisensi</th>
+              <th className="py-1 pr-2 font-normal">Nomor registrasi</th>
+              <th className="py-1 text-right font-normal">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {requests.map((r) => {
+              const st = STATUS_LABEL[r.status]
+              return (
+                <tr key={r.id} className="border-b border-border/60 align-middle last:border-0">
+                  <td className="py-1.5 pr-2 font-mono break-all">{r.license_code}</td>
+                  <td className="py-1.5 pr-2">
+                    {r.status === "issued" && r.registration_number ? (
+                      <span className="inline-flex items-center gap-1">
+                        <span className="font-mono font-bold break-all">{r.registration_number}</span>
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          className="size-6 shrink-0"
+                          aria-label="Salin nomor registrasi"
+                          onClick={() => copy(r.registration_number!)}
+                        >
+                          <Copy className="size-3" />
+                        </Button>
+                      </span>
+                    ) : r.status === "rejected" && r.admin_note ? (
+                      <span className="text-destructive">Alasan: {r.admin_note}</span>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
+                  </td>
+                  <td className="py-1.5 text-right">
+                    <Badge variant={st.variant} className="text-[10px]">
+                      {st.label}
+                    </Badge>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       )}
 
       {remaining > 0 ? (
-        <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+        <div className="mt-2 flex gap-2">
           <Input
             value={code}
             onChange={(e) => setCode(e.target.value)}
             placeholder="Tempel kode lisensi dari program"
-            className="font-mono text-xs"
+            className="h-8 font-mono text-xs"
           />
           <Button
             size="sm"
-            className="rounded-full"
+            className="h-8 shrink-0 rounded-full"
             disabled={sending || code.trim().length === 0}
             onClick={submit}
           >
             {sending && <Loader2 className="mr-1 size-4 animate-spin" />}
-            Minta nomor registrasi
+            Minta nomor
           </Button>
         </div>
       ) : (
-        <p className="mt-2 text-xs text-muted-foreground">
-          Kuota lisensi untuk produk ini sudah terpakai. Hubungi kami untuk menambah atau mengganti komputer.
+        <p className="mt-1.5 text-muted-foreground">
+          Kuota sudah terpakai. Hubungi kami untuk menambah atau mengganti komputer.
         </p>
       )}
     </div>
