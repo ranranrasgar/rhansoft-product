@@ -32,6 +32,19 @@ Website katalog & checkout produk software dengan integrasi Midtrans (sandbox) d
 - Tabel DB baru: `trial_registrations`
 - Tombol "Uji coba gratis" di Header & MobileMenu → link ke halaman pendaftaran
 
+### 6. Rhansoft Ads (iklan produk untuk aplikasi lain)
+- Produk Rhansoft bisa tampil sebagai iklan di aplikasi lain (mis. dashboard NOCR untuk tenant paket gratis).
+- **Slot iklan** dikelola di Admin → Pengaturan → "Iklan Produk": nama, format (horizontal / vertikal / kotak), gaya (gambar saja / gambar + deskripsi), jumlah produk, aktif/nonaktif, statistik tayang & klik. Tiap slot punya `slot_key`.
+- Produk mana yang boleh diiklankan: saklar per produk di bagian yang sama (`products.ad_enabled`).
+- API publik (CORS `*`): `GET /api/ads?key=SLOT_KEY` → JSON produk acak; `GET /api/ads/click?key=&p=` → hitung klik lalu buka `/product/:id` (dengan UTM). Kode di `server/lib/ads.mjs`.
+- Pasang di situs lain:
+  ```html
+  <div data-rhansoft-ad data-key="SLOT_KEY" data-format="horizontal" data-style="image_text"></div>
+  <script async src="https://app.rhantech.com/api/ads/embed.js"></script>
+  ```
+  Opsional: `data-limit`, `data-note` + `data-note-url` (mis. ajakan upgrade).
+- **Migrasi DB wajib** di server yang sudah jalan: `psql -U postgres -d rhansoft_store -f app/server/db/migration_ads.sql`.
+
 ## Tech Stack
 - **Frontend:** React + Vite + TypeScript + Tailwind + shadcn/ui
 - **Backend:** Express + PostgreSQL + midtrans-client + nodemailer

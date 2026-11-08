@@ -243,3 +243,21 @@ CREATE TRIGGER set_updated_at_trial
     BEFORE UPDATE ON trial_registrations
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+-- ── AD SLOTS (Rhansoft Ads, lihat migration_ads.sql) ────────────
+CREATE TABLE IF NOT EXISTS ad_slots (
+    id           SERIAL PRIMARY KEY,
+    slot_key     VARCHAR(64) UNIQUE NOT NULL,
+    name         VARCHAR(120) NOT NULL,
+    site_url     TEXT,
+    format       VARCHAR(20) NOT NULL DEFAULT 'horizontal',  -- horizontal | vertical | square
+    style        VARCHAR(20) NOT NULL DEFAULT 'image_text',  -- image | image_text
+    max_items    INTEGER NOT NULL DEFAULT 3,
+    is_active    BOOLEAN NOT NULL DEFAULT TRUE,
+    impressions  BIGINT NOT NULL DEFAULT 0,
+    clicks       BIGINT NOT NULL DEFAULT 0,
+    created_at   TIMESTAMPTZ DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Produk mana yang boleh tampil sebagai iklan (default: semua produk aktif).
+ALTER TABLE products ADD COLUMN IF NOT EXISTS ad_enabled BOOLEAN DEFAULT TRUE;

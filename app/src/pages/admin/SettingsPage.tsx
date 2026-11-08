@@ -22,6 +22,7 @@ import {
 import { toast } from "sonner"
 import { authHeaders } from "@/lib/auth"
 import { PROVINCES } from "@/lib/indonesia-provinces"
+import { AdsSettings } from "./AdsSettings"
 
 function SettingsSection({
   icon: Icon,
@@ -452,6 +453,9 @@ export function SettingsPage() {
           </div>
         </div>
       </SettingsSection>
+
+      {/* Rhansoft Ads: ad slots for other apps (each change is saved directly) */}
+      <AdsSettings />
     </div>
   )
 }
