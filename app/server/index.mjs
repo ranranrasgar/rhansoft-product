@@ -35,6 +35,7 @@ import {
   getUserById,
   authMiddleware,
 } from "./lib/auth.mjs"
+import { registerAdRoutes } from "./lib/ads.mjs"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 dotenv.config({ path: path.resolve(__dirname, ".env") })
@@ -1269,6 +1270,9 @@ app.get("/api/trial/registrations", async (req, res) => {
     res.status(500).json({ error: err.message })
   }
 })
+
+// ── Rhansoft Ads (iklan produk untuk aplikasi lain) — lihat lib/ads.mjs ──
+registerAdRoutes(app)
 
 // ═══════════════════════════════════════════════════════════════
 //  START SERVER

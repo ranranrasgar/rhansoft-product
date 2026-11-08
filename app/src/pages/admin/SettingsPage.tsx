@@ -14,6 +14,7 @@ import {
   Save,
 } from "lucide-react"
 import { toast } from "sonner"
+import { AdsSettings } from "./AdsSettings"
 
 function SettingsSection({
   icon: Icon,
@@ -184,6 +185,9 @@ export function SettingsPage() {
           </div>
         </div>
       </SettingsSection>
+
+      {/* Rhansoft Ads: ad slots for other apps (saved directly, not by the button below) */}
+      <AdsSettings />
 
       {/* Save button */}
       <div className="flex justify-end">
