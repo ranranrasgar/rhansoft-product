@@ -83,7 +83,7 @@ docker compose up -d
 # ── 6. Cek hasil ────────────────────────────────────────────────
 step "Pengecekan"
 docker compose ps
-proxy=$(docker exec "$WEB_CONTAINER" grep -c "location /api/" /etc/nginx/conf.d/default.conf || true)
+proxy=$(docker exec "$WEB_CONTAINER" grep -cE "location[ ^~]*/api/" /etc/nginx/conf.d/default.conf || true)
 [ "$proxy" = "1" ] || die "proxy /api tidak ada di nginx web (hasil: $proxy). Cek app/nginx.conf dan app/Dockerfile."
 sleep 5
 docker exec "$WEB_CONTAINER" wget -qO- http://127.0.0.1/api/health | grep -q '"status":"ok"' \
