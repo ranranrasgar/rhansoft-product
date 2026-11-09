@@ -13,18 +13,14 @@ import {
   Phone,
   MapPin,
   Building2,
-  CreditCard,
   Check,
   FileText,
   MessageCircle,
+  CreditCard,
 } from "lucide-react"
 import { toast } from "sonner"
 
 const WHATSAPP_NUMBER = "6281333355871"
-
-function formatPrice(n: number) {
-  return n.toLocaleString("id-ID", { style: "currency", currency: "IDR", minimumFractionDigits: 0 })
-}
 
 export function TrialRegisterPage() {
   const navigate = useNavigate()
@@ -48,16 +44,13 @@ export function TrialRegisterPage() {
   const [processing, setProcessing] = useState(false)
   const [success, setSuccess] = useState(false)
 
+  
   const update = (field: keyof typeof form, value: string) =>
     setForm((f) => ({ ...f, [field]: value }))
 
   const validate = (): boolean => {
     if (!form.fullName || form.fullName.trim().length < 3) {
       toast.error("Mohon isi nama lengkap sesuai KTP")
-      return false
-    }
-    if (!form.nik || !/^\d{16}$/.test(form.nik.replace(/\s/g, ""))) {
-      toast.error("NIK harus 16 digit angka sesuai KTP")
       return false
     }
     if (!form.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
@@ -98,7 +91,9 @@ export function TrialRegisterPage() {
       const data = await res.json()
       setSuccess(true)
       toast.success("Pendaftaran berhasil!", {
-        description: `Email konfirmasi telah dikirim ke ${form.email}`,
+        description: data.emailSent
+          ? `Surat konfirmasi terkirim ke ${form.email}`
+          : "Tim kami akan menghubungi via WhatsApp",
       })
 
       // Auto-redirect to WhatsApp after 3 seconds
@@ -206,7 +201,7 @@ export function TrialRegisterPage() {
             <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10">
               <CreditCard className="size-4 text-primary" />
             </div>
-            <h2 className="text-lg font-semibold">Data Identitas (Sesuai KTP)</h2>
+            <h2 className="text-lg font-semibold">Data Identitas </h2>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="sm:col-span-2">

@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react"
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom"
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom"
 import { GoogleOAuthProvider } from "@react-oauth/google"
 import { Toaster } from "@/components/ui/sonner"
 import { CartProvider } from "@/hooks/useCart"
@@ -10,10 +10,13 @@ import { MasterDataProvider } from "@/hooks/useMasterData"
 import { GOOGLE_CLIENT_ID } from "@/lib/env"
 import { Header } from "@/sections/Header"
 import { HeroCarousel } from "@/sections/HeroCarousel"
+import { TrustPillBanner } from "@/components/TrustPillBanner"
 import { Categories } from "@/sections/Categories"
 import { FeaturedProducts } from "@/sections/FeaturedProducts"
 import { PromotionalSections } from "@/sections/PromotionalSections"
+import { SocialProofSection } from "@/sections/SocialProofSection"
 import { Footer } from "@/sections/Footer"
+import { WhatsAppFloatingButton } from "@/components/WhatsAppFloatingButton"
 
 // Lazy-loaded pages for code-splitting
 const ProductDetailPage = lazy(() => import("@/pages/ProductDetailPage").then((m) => ({ default: m.ProductDetailPage })))
@@ -22,6 +25,7 @@ const StaticPage = lazy(() => import("@/pages/StaticPage").then((m) => ({ defaul
 const AuthPage = lazy(() => import("@/pages/AuthPage").then((m) => ({ default: m.AuthPage })))
 const TrialRegisterPage = lazy(() => import("@/pages/TrialRegisterPage").then((m) => ({ default: m.TrialRegisterPage })))
 const ProfilePage = lazy(() => import("@/pages/ProfilePage").then((m) => ({ default: m.ProfilePage })))
+const CategoriesPage = lazy(() => import("@/pages/CategoriesPage").then((m) => ({ default: m.CategoriesPage })))
 const AdminLayout = lazy(() => import("@/pages/admin/AdminLayout").then((m) => ({ default: m.AdminLayout })))
 const DashboardPage = lazy(() => import("@/pages/admin/DashboardPage").then((m) => ({ default: m.DashboardPage })))
 const ProductsPage = lazy(() => import("@/pages/admin/ProductsPage").then((m) => ({ default: m.ProductsPage })))
@@ -35,22 +39,27 @@ function HomePage() {
   return (
     <>
       <HeroCarousel />
+      <TrustPillBanner />
       <Categories />
       <FeaturedProducts />
       <PromotionalSections />
+      <SocialProofSection />
     </>
   )
 }
 
-function App() {
-  const appContent = (
+function AppLayout() {
+  const location = useLocation()
+  const isAdmin = location.pathname.startsWith("/admin")
+
+  return (
     <AuthProvider>
       <NavProvider>
         <ProductProvider>
           <MasterDataProvider>
             <CartProvider>
               <div className="min-h-screen bg-background text-foreground antialiased">
-                <Header />
+                {!isAdmin && <Header />}
                 <main>
                   <Suspense fallback={<div className="flex min-h-[50vh] items-center justify-center"><span className="size-6 animate-spin rounded-full border-2 border-muted border-t-primary" /></div>}>
                     <Routes>
@@ -71,11 +80,13 @@ function App() {
                       <Route path="/register" element={<AuthPage />} />
                       <Route path="/trial-register" element={<TrialRegisterPage />} />
                       <Route path="/profile" element={<ProfilePage />} />
+                      <Route path="/categories" element={<CategoriesPage />} />
                       <Route path="*" element={<Navigate to="/" replace />} />
                     </Routes>
                   </Suspense>
                 </main>
-                <Footer />
+                {!isAdmin && <Footer />}
+                {!isAdmin && <WhatsAppFloatingButton />}
               </div>
               <Toaster position="bottom-right" richColors theme="light" />
             </CartProvider>
@@ -84,13 +95,15 @@ function App() {
       </NavProvider>
     </AuthProvider>
   )
+}
 
+function App() {
   return (
     <BrowserRouter>
       {GOOGLE_CLIENT_ID ? (
-        <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>{appContent}</GoogleOAuthProvider>
+        <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}><AppLayout /></GoogleOAuthProvider>
       ) : (
-        appContent
+        <AppLayout />
       )}
     </BrowserRouter>
   )

@@ -108,7 +108,7 @@ export function ImageUpload({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onClick={() => !isUploading && inputRef.current?.click()}
-        className={`relative ${aspectClass} cursor-pointer overflow-hidden rounded-xl border-2 border-dashed transition-colors ${
+        className={`relative ${aspectClass} cursor-pointer overflow-hidden rounded-none border-2 border-dashed transition-colors ${
           isDragging
             ? "border-primary bg-primary/5"
             : "border-input hover:border-muted-foreground/40"
@@ -119,7 +119,7 @@ export function ImageUpload({
             <img
               src={value}
               alt="Preview"
-              className="h-full w-full object-cover"
+              className="h-full w-full object-contain p-1"
             />
             <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all hover:bg-black/40 hover:opacity-100">
               <p className="flex items-center gap-2 text-sm font-medium text-white">

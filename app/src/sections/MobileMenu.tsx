@@ -14,38 +14,30 @@ import {
   Settings,
   ChevronRight,
   ChevronDown,
-  ShoppingBag,
   ArrowRight,
+  ExternalLink,
+  Code,
+  Wrench,
+  Globe,
+  Server,
 } from "lucide-react"
-import { industries, categoryIconMap, productIconMap } from "@/data/navigation"
-import type { Product } from "@/data/store"
-import type { LucideIcon } from "lucide-react"
+import { categories } from "@/data/store"
 
 type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
 }
 
-function getIconForCategory(name: string): LucideIcon {
-  return categoryIconMap[name] ?? ShoppingBag
-}
-
-function getIconForProduct(product: Product): LucideIcon {
-  return productIconMap[product.id] ?? getIconForCategory(product.category)
-}
-
 export function MobileMenu({ open, onOpenChange }: Props) {
   const navigate = useNavigate()
   const routerNavigate = useRouterNavigate()
   const { products } = useProducts()
-  const [expanded, setExpanded] = useState<"apps" | "industries" | null>(null)
+  const [expanded, setExpanded] = useState<"apps" | null>("apps")
 
   const go = (fn: () => void) => {
     fn()
     onOpenChange(false)
   }
-
-  const featuredProducts = products.filter((p) => p.featured)
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -57,11 +49,59 @@ export function MobileMenu({ open, onOpenChange }: Props) {
         <Separator />
 
         <div className="flex flex-col px-3 py-2">
+          <p className="px-3 pt-1 pb-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            Layanan SaaS & Ekosistem
+          </p>
+          {/* External link: Rhantech */}
+          <a
+            href="https://rhantech.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            <span className="flex items-center gap-2">
+              <Code className="size-4 text-primary" />
+              Rhantech (Source Code)
+            </span>
+            <ExternalLink className="size-3.5 text-muted-foreground" />
+          </a>
+
+          {/* External link: Buatin.tech */}
+          <a
+            href="https://buatin.tech/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            <span className="flex items-center gap-2">
+              <Wrench className="size-4 text-primary" />
+              Buatin Tech (Tools)
+            </span>
+            <ExternalLink className="size-3.5 text-muted-foreground" />
+          </a>
+
+          {/* External link: NOC Rhantech */}
+          <a
+            href="https://noc.rhantech.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+          >
+            <span className="flex items-center gap-2">
+              <Server className="size-4 text-primary" />
+              NOC Rhantech (Monitoring)
+            </span>
+            <ExternalLink className="size-3.5 text-muted-foreground" />
+          </a>
+
           <button
             onClick={() => go(() => navigate("store"))}
             className="flex items-center justify-between rounded-lg px-3 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
-            Harga
+            <span className="flex items-center gap-2">
+              <Globe className="size-4 text-primary" />
+              Harga & Katalog
+            </span>
             <ChevronRight className="size-4 text-muted-foreground" />
           </button>
           <button
@@ -82,13 +122,13 @@ export function MobileMenu({ open, onOpenChange }: Props) {
 
         <Separator />
 
-        {/* Aplikasi accordion */}
+        {/* Aplikasi accordion (Odoo style category list) */}
         <div className="px-3 py-2">
           <button
             onClick={() => setExpanded(expanded === "apps" ? null : "apps")}
             className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
           >
-            Aplikasi
+            <span>Daftar Aplikasi</span>
             <ChevronDown
               className={`size-4 text-muted-foreground transition-transform ${
                 expanded === "apps" ? "rotate-180" : ""
@@ -96,72 +136,51 @@ export function MobileMenu({ open, onOpenChange }: Props) {
             />
           </button>
           {expanded === "apps" && (
-            <div className="mt-1 space-y-2 pb-2">
-              <div className="grid grid-cols-2 gap-1.5">
-                {featuredProducts.map((p) => {
-                  const PIcon = getIconForProduct(p)
-                  return (
-                    <button
-                      key={p.id}
-                      onClick={() =>
-                        go(() => {
-                          routerNavigate(`/product/${p.id}`)
-                          window.scrollTo({ top: 0, behavior: "smooth" })
-                        })
-                      }
-                      className="group flex flex-col items-center gap-1.5 rounded-lg border border-border bg-card p-2.5 text-center transition-colors hover:border-primary/40 hover:bg-accent/50"
-                    >
-                      <div className="flex size-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                        <PIcon className="size-4" />
-                      </div>
-                      <span className="line-clamp-2 text-[11px] font-medium leading-tight">
-                        {p.name.replace("Software ", "").replace("Aplikasi ", "")}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-              <button
-                onClick={() => go(() => navigate("store"))}
-                className="flex w-full items-center gap-1 px-3 py-2 text-xs font-medium text-primary"
-              >
-                Lihat semua aplikasi
-                <ArrowRight className="size-3" />
-              </button>
-            </div>
-          )}
-        </div>
-
-        <Separator />
-
-        {/* Industri accordion */}
-        <div className="px-3 py-2">
-          <button
-            onClick={() => setExpanded(expanded === "industries" ? null : "industries")}
-            className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-accent"
-          >
-            Industri
-            <ChevronDown
-              className={`size-4 text-muted-foreground transition-transform ${
-                expanded === "industries" ? "rotate-180" : ""
-              }`}
-            />
-          </button>
-          {expanded === "industries" && (
-            <div className="mt-1 grid grid-cols-1 gap-1 pb-2">
-              {industries.slice(0, 6).map((ind) => {
-                const Icon = ind.icon
+            <div className="mt-2 space-y-4 px-2 pb-2">
+              {categories.map((cat) => {
+                const catProducts = products.filter((p) => p.category === cat.name)
+                if (catProducts.length === 0) return null
                 return (
-                  <button
-                    key={ind.id}
-                    onClick={() => go(() => navigate("category", ind.category))}
-                    className="flex items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
-                  >
-                    <Icon className="size-4 text-primary" />
-                    <span className="font-medium">{ind.label}</span>
-                  </button>
+                  <div key={cat.id} className="space-y-1.5">
+                    <button
+                      onClick={() => go(() => navigate("category", cat.name))}
+                      className="text-xs font-bold uppercase tracking-wider text-primary hover:underline text-left block"
+                    >
+                      {cat.name}
+                    </button>
+                    <ul className="space-y-1 pl-1">
+                      {catProducts.map((p) => (
+                        <li key={p.id}>
+                          <button
+                            onClick={() =>
+                              go(() => {
+                                routerNavigate(`/product/${p.id}`)
+                                window.scrollTo({ top: 0, behavior: "smooth" })
+                              })
+                            }
+                            className="text-[13px] text-muted-foreground hover:text-foreground text-left block w-full py-0.5 truncate"
+                          >
+                            {p.name.replace("Software ", "").replace("Aplikasi ", "")}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )
               })}
+
+              <button
+                onClick={() =>
+                  go(() => {
+                    routerNavigate("/categories")
+                    window.scrollTo({ top: 0, behavior: "smooth" })
+                  })
+                }
+                className="flex w-full items-center gap-1 pt-2 text-xs font-semibold text-primary"
+              >
+                Lihat semua {categories.length} kategori software
+                <ArrowRight className="size-3" />
+              </button>
             </div>
           )}
         </div>
@@ -173,7 +192,7 @@ export function MobileMenu({ open, onOpenChange }: Props) {
           <button
             onClick={() => {
               onOpenChange(false)
-              navigate("/trial-register")
+              routerNavigate("/trial-register")
             }}
             className="w-full rounded-full bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
           >

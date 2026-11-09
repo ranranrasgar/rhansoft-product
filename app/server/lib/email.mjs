@@ -555,3 +555,101 @@ export async function sendTrialRegistrationEmail(reg) {
   return info
 }
 
+// ── Trial Registration: Admin Notification Email ────────────────
+export async function sendTrialAdminEmail(reg) {
+  const fullName = reg.full_name
+  const regDate = new Date(reg.created_at || Date.now()).toLocaleString("id-ID", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+
+  const html = `<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pendaftar Uji Coba Baru — ${reg.registration_id}</title>
+</head>
+<body style="margin:0;padding:0;background:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1e293b;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;">
+    <tr>
+      <td align="center" style="padding:24px 12px;">
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#f59e0b 0%,#d97706 100%);padding:24px 40px;">
+              <p style="margin:0;font-size:13px;font-weight:600;color:rgba(255,255,255,0.85);text-transform:uppercase;letter-spacing:0.08em;">
+                🔔 Notifikasi Admin
+              </p>
+              <h1 style="margin:4px 0 0;font-size:22px;font-weight:800;color:#fff;">
+                Pendaftar Uji Coba Gratis Baru
+              </h1>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:32px 40px;">
+              <p style="margin:0 0 20px;font-size:15px;color:#475569;">
+                Seseorang telah mendaftar uji coba gratis pada <strong>${regDate}</strong>.
+                Mohon segera hubungi pendaftar untuk setup akun demo.
+              </p>
+
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;">
+                <tr><td colspan="2" style="padding:12px 20px;background:#f8fafc;font-size:13px;font-weight:700;color:${COMPANY.logoColor};text-transform:uppercase;letter-spacing:0.05em;">
+                  📋 Data Pendaftar
+                </td></tr>
+                <tr><td style="padding:8px 20px;font-size:14px;color:#64748b;width:180px;border-bottom:1px solid #f1f5f9;">Nama Lengkap</td><td style="padding:8px 20px;font-size:14px;font-weight:600;border-bottom:1px solid #f1f5f9;">${fullName}</td></tr>
+                <tr><td style="padding:8px 20px;font-size:14px;color:#64748b;border-bottom:1px solid #f1f5f9;">Email</td><td style="padding:8px 20px;font-size:14px;font-weight:600;border-bottom:1px solid #f1f5f9;"><a href="mailto:${reg.email}" style="color:${COMPANY.logoColor};">${reg.email}</a></td></tr>
+                <tr><td style="padding:8px 20px;font-size:14px;color:#64748b;border-bottom:1px solid #f1f5f9;">WhatsApp</td><td style="padding:8px 20px;font-size:14px;font-weight:600;border-bottom:1px solid #f1f5f9;"><a href="https://wa.me/${reg.whatsapp.replace(/^0/, "62")}" style="color:${COMPANY.logoColor};">${reg.whatsapp}</a></td></tr>
+                <tr><td style="padding:8px 20px;font-size:14px;color:#64748b;border-bottom:1px solid #f1f5f9;">Kota</td><td style="padding:8px 20px;font-size:14px;font-weight:600;border-bottom:1px solid #f1f5f9;">${reg.city || "-"}</td></tr>
+                <tr><td style="padding:8px 20px;font-size:14px;color:#64748b;border-bottom:1px solid #f1f5f9;">Provinsi</td><td style="padding:8px 20px;font-size:14px;font-weight:600;border-bottom:1px solid #f1f5f9;">${reg.province || "-"}</td></tr>
+                ${reg.product_name ? `<tr><td style="padding:8px 20px;font-size:14px;color:#64748b;border-bottom:1px solid #f1f5f9;">Produk Diminati</td><td style="padding:8px 20px;font-size:14px;font-weight:600;border-bottom:1px solid #f1f5f9;">${reg.product_name}</td></tr>` : ""}
+                ${reg.company ? `<tr><td style="padding:8px 20px;font-size:14px;color:#64748b;border-bottom:1px solid #f1f5f9;">Instansi</td><td style="padding:8px 20px;font-size:14px;font-weight:600;border-bottom:1px solid #f1f5f9;">${reg.company}</td></tr>` : ""}
+                <tr><td style="padding:8px 20px;font-size:14px;color:#64748b;">No. Registrasi</td><td style="padding:8px 20px;font-size:14px;font-weight:600;font-family:monospace;">${reg.registration_id}</td></tr>
+              </table>
+
+              <div style="margin:24px 0;text-align:center;">
+                <a href="https://wa.me/${reg.whatsapp.replace(/^0/, "62")}?text=${encodeURIComponent(`Halo ${fullName}, saya dari ${COMPANY.name}. Pendaftaran uji coba Anda (${reg.registration_id}) telah diterima. Mohon info waktu untuk demo.`)}"
+                   style="display:inline-block;padding:12px 32px;background:#22c55e;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">
+                  💬 Hubungi via WhatsApp
+                </a>
+              </div>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#0f172a;padding:20px 40px;text-align:center;">
+              <p style="margin:0;font-size:11px;color:rgba(255,255,255,0.4);line-height:1.6;">
+                Email ini dikirim otomatis dari sistem pendaftaran ${COMPANY.name}.<br>
+                © ${new Date().getFullYear()} ${COMPANY.name}. All rights reserved.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`
+
+  const mailOptions = {
+    from: `"${COMPANY.name}" <${process.env.MAIL_FROM_ADDRESS || process.env.SMTP_USER || COMPANY.email}>`,
+    to: process.env.MAIL_FROM_ADDRESS || COMPANY.email,
+    subject: `🔔 Pendaftar Uji Coba Baru: ${fullName} — ${reg.registration_id}`,
+    html,
+    text: `Pendaftar uji coba baru:\n\nNama: ${fullName}\nEmail: ${reg.email}\nWhatsApp: ${reg.whatsapp}\nKota: ${reg.city || "-"}\nProduk: ${reg.product_name || "-"}\nNo. Registrasi: ${reg.registration_id}\nTanggal: ${regDate}\n\nMohon hubungi pendaftar dalam 1x24 jam.`,
+  }
+
+  const info = await transporter.sendMail(mailOptions)
+  console.log(`📧 Admin notification email sent: ${info.messageId}`)
+  return info
+}
+

@@ -178,7 +178,7 @@ export function AdsSettings() {
           <div className="grid gap-2 sm:grid-cols-2">
             {products.map((p) => (
               <label key={p.id} className="flex items-center gap-3 rounded-md border p-2">
-                {p.image ? <img src={p.image} alt="" className="size-10 rounded object-cover" /> : <div className="size-10 rounded bg-muted" />}
+                {p.image ? <img src={p.image} alt="" className="size-10 rounded-none object-cover" /> : <div className="size-10 rounded-none bg-muted" />}
                 <span className="min-w-0 flex-1 truncate text-sm">{p.name}</span>
                 <Switch checked={p.ad_enabled} onCheckedChange={(v) => toggleProduct(p, v)} />
               </label>
