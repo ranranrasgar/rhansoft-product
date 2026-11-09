@@ -130,7 +130,7 @@ export function CartSheet({ open, onOpenChange }: Props) {
                 <span className="text-lg font-semibold">{formatPrice(subtotal)}</span>
               </div>
               <p className="text-[11px] text-muted-foreground">
-                Ongkos kirim dan pajak dihitung saat checkout.
+                Pajak dihitung saat checkout.
               </p>
               <div className="flex gap-2">
                 <Button

@@ -55,7 +55,7 @@ function formatPrice(n: number) {
   })
 }
 
-const WHATSAPP_NUMBER = "6281333355871"
+const WHATSAPP_NUMBER = "6281333335871"
 
 function StarRating({ rating, reviews }: { rating: number; reviews: number }) {
   return (

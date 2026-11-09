@@ -1,3 +1,4 @@
+import { authHeaders } from "@/lib/auth"
 import { useState, useRef, useCallback } from "react"
 import imageCompression from "browser-image-compression"
 import { Loader2, Upload, X, ImageIcon } from "lucide-react"
@@ -56,6 +57,7 @@ export function ImageUpload({
 
         const res = await fetch("/api/upload", {
           method: "POST",
+          headers: authHeaders(),
           body: formData,
         })
 

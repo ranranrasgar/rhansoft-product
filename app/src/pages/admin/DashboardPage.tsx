@@ -13,7 +13,7 @@ import {
 } from "lucide-react"
 import { useProducts } from "@/hooks/useProducts"
 import { useAuth } from "@/hooks/useAuth"
-import { fetchAdminUsers, getToken, type AdminUser } from "@/lib/auth"
+import { authHeaders, fetchAdminUsers, getToken, type AdminUser } from "@/lib/auth"
 
 function StatCard({
   icon: Icon,
@@ -70,9 +70,10 @@ export function DashboardPage() {
         .catch(() => {})
     }
 
-    fetch("/api/admin/orders")
+    fetch("/api/admin/orders", { headers: authHeaders() })
       .then((res) => res.json())
-      .then(setOrders)
+      // Pesanan pelanggan lama (Rp 0) bukan penjualan: tidak ikut jumlah pesanan maupun pendapatan
+      .then((rows) => setOrders(rows.filter((o: { payment_type?: string | null }) => o.payment_type !== "legacy")))
       .catch(() => {})
   }, [isAdmin])
 

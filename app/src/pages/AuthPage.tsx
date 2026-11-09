@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate, useLocation, Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,7 +24,13 @@ type Mode = "login" | "register"
 export function AuthPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const { login: authLogin } = useAuth()
+  const { login: authLogin, user: currentUser, loading: authLoading } = useAuth()
+  const redirectTo = (location.state as { from?: string } | null)?.from || "/"
+
+  // Sudah login: tidak perlu melihat halaman login/daftar lagi
+  useEffect(() => {
+    if (!authLoading && currentUser) navigate(redirectTo, { replace: true })
+  }, [authLoading, currentUser, navigate, redirectTo])
 
   const [mode, setMode] = useState<Mode>(
     location.pathname.includes("register") ? "register" : "login"
@@ -67,7 +73,7 @@ export function AuthPage() {
 
         authLogin(user, token)
         toast.success(`Selamat datang, ${user.first_name}!`)
-        navigate("/")
+        navigate(redirectTo, { replace: true })
       } else {
         if (!form.email || !form.password) {
           toast.error("Email dan password wajib diisi")
@@ -81,7 +87,7 @@ export function AuthPage() {
 
         authLogin(user, token)
         toast.success(`Selamat datang kembali, ${user.first_name}!`)
-        navigate("/")
+        navigate(redirectTo, { replace: true })
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Terjadi kesalahan"
@@ -103,7 +109,7 @@ export function AuthPage() {
       const { user, token } = await loginWithGoogle(credentialResponse.credential)
       authLogin(user, token)
       toast.success(`Selamat datang, ${user.first_name}!`)
-      navigate("/")
+      navigate(redirectTo, { replace: true })
     } catch (err) {
       const rawMsg = err instanceof Error ? err.message : "Login Google gagal"
       const msg = rawMsg.includes("Google OAuth belum dikonfigurasi")

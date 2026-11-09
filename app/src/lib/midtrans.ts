@@ -1,3 +1,4 @@
+import { authHeaders } from "@/lib/auth"
 /**
  * Midtrans Snap.js integration helper.
  *
@@ -154,11 +155,11 @@ export type CreateTransactionParams = {
  * Calls the backend API to get a real Snap token from Midtrans.
  */
 export async function requestSnapToken(
-  params: CreateTransactionParams & { payment_method?: string }
+  params: CreateTransactionParams & { payment_method?: string; province?: string }
 ): Promise<{ token: string; redirect_url: string; snap_url?: string; client_key?: string }> {
   const res = await fetch("/api/create-transaction", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders() },
     body: JSON.stringify(params),
   })
 

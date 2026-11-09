@@ -1,3 +1,4 @@
+import { authHeaders } from "@/lib/auth"
 import {
   createContext,
   useContext,
@@ -15,9 +16,9 @@ type ProductContextValue = {
   loading: boolean
   error: string | null
   getProductById: (id: string) => Product | undefined
-  addProduct: (product: Omit<Product, "id">) => Product
+  addProduct: (product: Omit<Product, "id">) => Promise<string>
   updateProduct: (id: string, updates: Partial<Product>) => void
-  deleteProduct: (id: string) => void
+  deleteProduct: (id: string) => Promise<void>
   resetProducts: () => void
   refetch: () => void
 }
@@ -72,16 +73,20 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     [products]
   )
 
+  // Simpan ke server dulu; katalog dimuat ulang agar id dan urutan sama dengan database
   const addProduct = useCallback(
-    (product: Omit<Product, "id">) => {
-      const newProduct: Product = {
-        ...product,
-        id: `sw-${Date.now()}`,
-      }
-      setProducts((prev) => [...prev, newProduct])
-      return newProduct
+    async (product: Omit<Product, "id">) => {
+      const res = await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify(product),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || "Gagal menyimpan produk")
+      refetch()
+      return data.id as string
     },
-    []
+    [refetch]
   )
 
   const updateProduct = useCallback(
@@ -94,7 +99,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       // Also send to backend API
       fetch(`/api/products/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify(updates),
       }).catch((err) => {
         console.error("Failed to sync product update to backend:", err)
@@ -103,7 +108,14 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     []
   )
 
-  const deleteProduct = useCallback((id: string) => {
+  // Server menyembunyikan produk (bukan hapus permanen); baru hilang dari daftar setelah server berhasil
+  const deleteProduct = useCallback(async (id: string) => {
+    const res = await fetch(`/api/products/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.error || "Gagal menghapus produk")
     setProducts((prev) => prev.filter((p) => p.id !== id))
   }, [])
 

@@ -9,6 +9,9 @@ RUN npm ci
 
 # Copy source and build
 COPY . .
+# Pass App Insights connection string at build time (optional; no-op if absent)
+ARG VITE_APPINSIGHTS_CONNECTION_STRING=""
+ENV VITE_APPINSIGHTS_CONNECTION_STRING=$VITE_APPINSIGHTS_CONNECTION_STRING
 ARG VITE_API_BASE=""
 ARG VITE_GOOGLE_CLIENT_ID="456401864985-if66ro8vpmfoc4sat2d1nvnrt7vca73c.apps.googleusercontent.com"
 ENV VITE_API_BASE=$VITE_API_BASE

@@ -205,36 +205,36 @@ export function HeroCarousel() {
           )
         })}
 
-        {/* Controls: Next / Prev arrows on sm+ screens */}
-        <button
-          onClick={prev}
-          aria-label="Slide sebelumnya"
-          className="absolute left-1 top-1/2 z-20 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/80 backdrop-blur-md transition hover:bg-white/15 hover:text-white sm:flex md:left-2 md:size-11"
-        >
-          <ChevronLeft className="size-5" />
-        </button>
-        <button
-          onClick={next}
-          aria-label="Slide berikutnya"
-          className="absolute right-1 top-1/2 z-20 hidden size-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/80 backdrop-blur-md transition hover:bg-white/15 hover:text-white sm:flex md:right-2 md:size-11"
-        >
-          <ChevronRight className="size-5" />
-        </button>
-
-        {/* Slide indicators */}
-        <div className="absolute bottom-2.5 sm:bottom-3 md:bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2">
-          {heroSlides.map((s, i) => (
-            <button
-              key={s.id}
-              onClick={() => setActive(i)}
-              aria-label={`Ke slide ${i + 1}`}
-              className={`h-1 rounded-full transition-all duration-300 ${
-                i === active
-                  ? "w-8 sm:w-10 bg-white"
-                  : "w-2 bg-white/30 hover:bg-white/50"
-              }`}
-            />
-          ))}
+        {/* Controls: panah mengapit penanda slide di bawah */}
+        <div className="absolute bottom-2.5 sm:bottom-3 md:bottom-4 left-1/2 z-20 flex -translate-x-1/2 items-center gap-3">
+          <button
+            onClick={prev}
+            aria-label="Slide sebelumnya"
+            className="flex size-8 sm:size-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/80 backdrop-blur-md transition hover:bg-white/15 hover:text-white"
+          >
+            <ChevronLeft className="size-4" />
+          </button>
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            {heroSlides.map((s, i) => (
+              <button
+                key={s.id}
+                onClick={() => setActive(i)}
+                aria-label={`Ke slide ${i + 1}`}
+                className={`h-1 rounded-full transition-all duration-300 ${
+                  i === active
+                    ? "w-8 sm:w-10 bg-white"
+                    : "w-2 bg-white/30 hover:bg-white/50"
+                }`}
+              />
+            ))}
+          </div>
+          <button
+            onClick={next}
+            aria-label="Slide berikutnya"
+            className="flex size-8 sm:size-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/80 backdrop-blur-md transition hover:bg-white/15 hover:text-white"
+          >
+            <ChevronRight className="size-4" />
+          </button>
         </div>
       </div>
     </section>

@@ -220,7 +220,6 @@ CREATE TABLE IF NOT EXISTS trial_registrations (
     id              SERIAL PRIMARY KEY,
     registration_id VARCHAR(30) UNIQUE NOT NULL,    -- TR-{timestamp}
     full_name       VARCHAR(200) NOT NULL,
-    nik             VARCHAR(16) NOT NULL,
     email           VARCHAR(200) NOT NULL,
     whatsapp        VARCHAR(20) NOT NULL,
     address         TEXT,

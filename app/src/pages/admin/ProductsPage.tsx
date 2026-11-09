@@ -1,3 +1,4 @@
+import { authHeaders } from "@/lib/auth"
 import { useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
@@ -20,6 +21,7 @@ import {
   Eye,
   Loader2,
   Layers,
+  Copy,
 } from "lucide-react"
 import { toast } from "sonner"
 import { useProducts } from "@/hooks/useProducts"
@@ -51,20 +53,25 @@ function formatPrice(n: number) {
 }
 
 type EditState = {
-  mode: "add" | "edit"
+  mode: "add" | "edit" | "copy"
   product: Product | null
 }
 
 function ProductForm({
   initial,
+  asNew = false,
+  saving = false,
   onSave,
   onCancel,
 }: {
   initial: Product | null
+  /** true = data awal dari produk lain (Salin); disimpan sebagai produk baru */
+  asNew?: boolean
+  saving?: boolean
   onSave: (data: Omit<Product, "id"> | Product) => void
   onCancel: () => void
 }) {
-  const [name, setName] = useState(initial?.name ?? "")
+  const [name, setName] = useState(asNew && initial ? `${initial.name} (Salinan)` : (initial?.name ?? ""))
   const [category, setCategory] = useState(initial?.category ?? "")
   const [price, setPrice] = useState(initial?.price?.toString() ?? "")
   const [originalPrice, setOriginalPrice] = useState(initial?.originalPrice?.toString() ?? "")
@@ -132,8 +139,9 @@ function ProductForm({
       license,
       downloadSize,
       color,
-      rating: initial?.rating ?? 4.5,
-      reviews: initial?.reviews ?? 0,
+      // Ulasan milik produk asal, bukan salinannya
+      rating: asNew ? 4.5 : (initial?.rating ?? 4.5),
+      reviews: asNew ? 0 : (initial?.reviews ?? 0),
       highlights: highlights.split("\n").filter((h) => h.trim()),
       specs,
       gallery: gallery.filter((g) => g.trim()),
@@ -144,107 +152,113 @@ function ProductForm({
       benefits: benefits.split("\n").map((b) => b.trim()).filter(Boolean),
     }
 
-    if (initial) {
+    if (initial && !asNew) {
       onSave({ ...data, id: initial.id })
     } else {
       onSave(data)
     }
   }
 
+  const field = "flex flex-col gap-1.5"
+  const textareaClass =
+    "w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+
   return (
-    <div className="max-h-[70vh] overflow-y-auto">
-      <div className="grid grid-cols-2 gap-4 p-6">
-        <div className="col-span-2 flex flex-col gap-1.5">
-          <Label htmlFor="name">Nama Software *</Label>
-          <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Software Toko Rhansoft" />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="category">Kategori</Label>
-          <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              {categories.map((c) => (
-                <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="badge">Badge (opsional)</Label>
-          <Select value={badge || "none"} onValueChange={(v) => setBadge(v === "none" ? "" : v)}>
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Tidak ada</SelectItem>
-              <SelectItem value="New">New</SelectItem>
-              <SelectItem value="Sale">Sale</SelectItem>
-              <SelectItem value="Hot">Hot</SelectItem>
-              <SelectItem value="Best Seller">Best Seller</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex items-center gap-2 pt-6">
-          <button
-            type="button"
-            onClick={() => setFeatured((v) => !v)}
-            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-              featured ? "bg-primary" : "bg-muted"
-            }`}
-            role="switch"
-            aria-checked={featured}
-          >
-            <span
-              className={`inline-block size-4 transform rounded-full bg-white transition-transform ${
-                featured ? "translate-x-6" : "translate-x-1"
-              }`}
-            />
-          </button>
-          <div>
-            <Label className="cursor-pointer">Tampilkan di Menu Header</Label>
-            <p className="text-xs text-muted-foreground">Produk ini muncul di mega-menu "Aplikasi" &amp; menu mobile</p>
+    // Isi bergulir, tombol Simpan/Batal tetap terlihat di bawah
+    <div className="flex max-h-[85vh] flex-col">
+      <div className="flex-1 space-y-6 overflow-y-auto px-6 pb-6">
+        <div className="grid gap-6 md:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="grid content-start gap-4 sm:grid-cols-2">
+            <div className={`${field} sm:col-span-2`}>
+              <Label htmlFor="name">Nama Software *</Label>
+              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Software Toko Rhansoft" />
+            </div>
+            <div className={field}>
+              <Label htmlFor="category">Kategori *</Label>
+              <Select value={category} onValueChange={setCategory}>
+                <SelectTrigger id="category" className="w-full"><SelectValue placeholder="Pilih kategori" /></SelectTrigger>
+                <SelectContent>
+                  {categories.map((c) => (
+                    <SelectItem key={c.id} value={c.name}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className={field}>
+              <Label htmlFor="badge">Badge (opsional)</Label>
+              <Select value={badge || "none"} onValueChange={(v) => setBadge(v === "none" ? "" : v)}>
+                <SelectTrigger id="badge" className="w-full"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Tidak ada</SelectItem>
+                  <SelectItem value="New">New</SelectItem>
+                  <SelectItem value="Sale">Sale</SelectItem>
+                  <SelectItem value="Hot">Hot</SelectItem>
+                  <SelectItem value="Best Seller">Best Seller</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className={field}>
+              <Label htmlFor="price">Harga (Rp) *</Label>
+              <Input id="price" type="number" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="750000" />
+            </div>
+            <div className={field}>
+              <Label htmlFor="originalPrice">Harga Coret (opsional)</Label>
+              <Input id="originalPrice" type="number" value={originalPrice} onChange={(e) => setOriginalPrice(e.target.value)} placeholder="1200000" />
+            </div>
+            <div className={field}>
+              <Label htmlFor="version">Versi</Label>
+              <Input id="version" value={version} onChange={(e) => setVersion(e.target.value)} placeholder="1.0" />
+            </div>
+            <div className={field}>
+              <Label htmlFor="license">Lisensi</Label>
+              <Input id="license" value={license} onChange={(e) => setLicense(e.target.value)} placeholder="Lifetime License" />
+            </div>
+            <div className={field}>
+              <Label htmlFor="downloadSize">Ukuran Download</Label>
+              <Input id="downloadSize" value={downloadSize} onChange={(e) => setDownloadSize(e.target.value)} placeholder="50 MB" />
+            </div>
+            <div className={field}>
+              <Label htmlFor="color">Warna Accent</Label>
+              <div className="flex gap-2">
+                <Input
+                  type="color"
+                  aria-label="Pilih warna"
+                  value={/^#[0-9a-f]{6}$/i.test(color) ? color : "#0ea5e9"}
+                  onChange={(e) => setColor(e.target.value)}
+                  className="h-9 w-12 shrink-0 cursor-pointer p-1"
+                />
+                <Input id="color" value={color} onChange={(e) => setColor(e.target.value)} placeholder="#0ea5e9" />
+              </div>
+            </div>
+            <div className="flex items-start gap-3 rounded-lg border border-border p-3 sm:col-span-2">
+              <button
+                type="button"
+                onClick={() => setFeatured((v) => !v)}
+                className={`relative mt-0.5 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                  featured ? "bg-primary" : "bg-muted"
+                }`}
+                role="switch"
+                aria-checked={featured}
+                aria-label="Tampilkan di Menu Header"
+              >
+                <span
+                  className={`inline-block size-4 transform rounded-full bg-white transition-transform ${
+                    featured ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+              <div>
+                <p className="text-sm font-medium">Tampilkan di Menu Header</p>
+                <p className="text-xs text-muted-foreground">Produk ini muncul di mega-menu "Aplikasi" &amp; menu mobile</p>
+              </div>
+            </div>
+          </div>
+          <div className={field}>
+            <ImageUpload value={image} onChange={setImage} label="Gambar Utama" aspectRatio="wide" />
           </div>
         </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="price">Harga (Rp) *</Label>
-          <Input id="price" type="number" value={price} onChange={(e) => setPrice(e.target.value)} placeholder="750000" />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="originalPrice">Harga Coret (opsional)</Label>
-          <Input id="originalPrice" type="number" value={originalPrice} onChange={(e) => setOriginalPrice(e.target.value)} placeholder="1200000" />
-        </div>
-        <div className="col-span-2 flex flex-col gap-1.5">
-          <Label htmlFor="benefits">Manfaat Produk (1 per baris)</Label>
-          <textarea
-            id="benefits"
-            value={benefits}
-            onChange={(e) => setBenefits(e.target.value)}
-            rows={4}
-            className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            placeholder={"Menghemat waktu operasional 50%\nLaporan keuangan real-time\nMudah digunakan tanpa pelatihan panjang"}
-          />
-        </div>
-        <div className="col-span-2 flex flex-col gap-1.5">
-          <Label htmlFor="description">Deskripsi *</Label>
-          <textarea
-            id="description"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            placeholder="Deskripsi lengkap software..."
-          />
-        </div>
-        <div className="col-span-2 flex flex-col gap-1.5">
-          <ImageUpload value={image} onChange={setImage} label="Gambar Utama" aspectRatio="wide" />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="color">Warna Accent (hex)</Label>
-          <Input id="color" value={color} onChange={(e) => setColor(e.target.value)} placeholder="#0ea5e9" />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="version">Versi</Label>
-          <Input id="version" value={version} onChange={(e) => setVersion(e.target.value)} placeholder="1.0" />
-        </div>
-        <div className="col-span-2 flex flex-col gap-1.5">
+
+        <div className={field}>
           <Label>Platform (pilih satu atau lebih) *</Label>
           <div className="flex flex-wrap gap-2">
             {platforms.map((p) => {
@@ -254,7 +268,7 @@ function ProductForm({
                   key={p.id}
                   type="button"
                   onClick={() => togglePlatform(p.id)}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                  className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition-colors ${
                     checked
                       ? "border-primary bg-primary text-primary-foreground"
                       : "border-input bg-transparent hover:bg-accent"
@@ -267,39 +281,59 @@ function ProductForm({
             })}
           </div>
         </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="license">Lisensi</Label>
-          <Input id="license" value={license} onChange={(e) => setLicense(e.target.value)} placeholder="Lifetime License" />
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="downloadSize">Ukuran Download</Label>
-          <Input id="downloadSize" value={downloadSize} onChange={(e) => setDownloadSize(e.target.value)} placeholder="50 MB" />
-        </div>
-        <div className="col-span-2 flex flex-col gap-1.5">
-          <Label htmlFor="highlights">Highlights (1 per baris)</Label>
+
+        <div className={field}>
+          <Label htmlFor="description">Deskripsi *</Label>
           <textarea
-            id="highlights"
-            value={highlights}
-            onChange={(e) => setHighlights(e.target.value)}
-            rows={4}
-            className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            placeholder={"Fitur unggulan 1\nFitur unggulan 2"}
+            id="description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={5}
+            className={textareaClass}
+            placeholder="Deskripsi lengkap software..."
           />
         </div>
-        <div className="col-span-2 flex flex-col gap-1.5">
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className={field}>
+            <Label htmlFor="benefits">Manfaat Produk (1 per baris)</Label>
+            <textarea
+              id="benefits"
+              value={benefits}
+              onChange={(e) => setBenefits(e.target.value)}
+              rows={5}
+              className={textareaClass}
+              placeholder={"Menghemat waktu operasional 50%\nLaporan keuangan real-time\nMudah digunakan tanpa pelatihan panjang"}
+            />
+          </div>
+          <div className={field}>
+            <Label htmlFor="highlights">Highlights (1 per baris)</Label>
+            <textarea
+              id="highlights"
+              value={highlights}
+              onChange={(e) => setHighlights(e.target.value)}
+              rows={5}
+              className={textareaClass}
+              placeholder={"Fitur unggulan 1\nFitur unggulan 2"}
+            />
+          </div>
+        </div>
+
+        <div className={field}>
           <Label htmlFor="specs">Spesifikasi (format: Label: Nilai, 1 per baris)</Label>
           <textarea
             id="specs"
             value={specsText}
             onChange={(e) => setSpecsText(e.target.value)}
-            rows={5}
-            className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            rows={4}
+            className={textareaClass}
             placeholder={"Platform: Windows\nDatabase: MySQL"}
           />
         </div>
-        <div className="col-span-2 flex flex-col gap-2">
+
+        <div className="flex flex-col gap-2">
           <Label>Gallery Images</Label>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {gallery.map((img, idx) => (
               <div key={idx} className="relative aspect-video flex items-center justify-center overflow-hidden rounded-none bg-muted/20 p-1">
                 <img src={img} alt={`Gallery ${idx + 1}`} className="max-h-full max-w-full object-contain" />
@@ -307,6 +341,7 @@ function ProductForm({
                   type="button"
                   onClick={() => setGallery((prev) => prev.filter((_, i) => i !== idx))}
                   className="absolute right-1.5 top-1.5 rounded-lg bg-destructive p-1 text-destructive-foreground shadow-md transition-transform hover:scale-110"
+                  aria-label="Hapus gambar"
                 >
                   <Trash2 className="size-3.5" />
                 </button>
@@ -317,10 +352,11 @@ function ProductForm({
             )}
           </div>
         </div>
-        <div className="col-span-2 flex flex-col gap-1.5">
+
+        <div className={field}>
           <Label>Link Download (Produk Digital)</Label>
           {downloadLinks.map((dl, idx) => (
-            <div key={idx} className="flex items-center gap-2">
+            <div key={idx} className="grid grid-cols-[minmax(0,10rem)_minmax(0,1fr)_6rem_auto] items-center gap-2">
               <Input
                 value={dl.label}
                 onChange={(e) => {
@@ -329,7 +365,6 @@ function ProductForm({
                   setDownloadLinks(next)
                 }}
                 placeholder="Label (cth: Installer v1.0)"
-                className="w-48"
               />
               <Input
                 value={dl.url}
@@ -339,7 +374,6 @@ function ProductForm({
                   setDownloadLinks(next)
                 }}
                 placeholder="https://drive.google.com/..."
-                className="flex-1"
               />
               <Input
                 value={dl.size ?? ""}
@@ -349,12 +383,12 @@ function ProductForm({
                   setDownloadLinks(next)
                 }}
                 placeholder="45 MB"
-                className="w-24"
               />
               <Button
                 size="icon-sm"
                 variant="ghost"
                 className="text-destructive"
+                aria-label="Hapus link"
                 onClick={() => setDownloadLinks((prev) => prev.filter((_, i) => i !== idx))}
               >
                 <Trash2 className="size-4" />
@@ -372,23 +406,24 @@ function ProductForm({
             Tambah Link
           </Button>
         </div>
-        <div className="col-span-2 flex flex-col gap-1.5">
+
+        <div className={field}>
           <Label htmlFor="installTutorial">Tutorial Instalasi</Label>
           <textarea
             id="installTutorial"
             value={installTutorial}
             onChange={(e) => setInstallTutorial(e.target.value)}
             rows={6}
-            className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring font-mono"
+            className={`${textareaClass} font-mono`}
             placeholder={"1. Download installer dari link di atas\n2. Run as Administrator\n3. Ikuti wizard instalasi"}
           />
         </div>
       </div>
       <Separator />
       <DialogFooter className="gap-2 p-4">
-        <Button variant="outline" onClick={onCancel}>Batal</Button>
-        <Button onClick={handleSave}>
-          {initial ? "Simpan Perubahan" : "Tambah Produk"}
+        <Button variant="outline" onClick={onCancel} disabled={saving}>Batal</Button>
+        <Button onClick={handleSave} disabled={saving}>
+          {initial && !asNew ? "Simpan Perubahan" : "Tambah Produk"}
         </Button>
       </DialogFooter>
     </div>
@@ -429,22 +464,41 @@ export function ProductsPage() {
     setDialogOpen(true)
   }
 
-  const handleSave = (data: Omit<Product, "id"> | Product) => {
+  // Form Tambah Produk terisi data produk lain; baru tersimpan saat Tambah Produk ditekan
+  const handleCopy = (product: Product) => {
+    setEditState({ mode: "copy", product })
+    setDialogOpen(true)
+  }
+
+  const [saving, setSaving] = useState(false)
+  const handleSave = async (data: Omit<Product, "id"> | Product) => {
     if ("id" in data) {
       updateProduct(data.id, data)
       toast.success("Produk diperbarui", { description: data.name })
-    } else {
-      addProduct(data)
-      toast.success("Produk ditambahkan", { description: data.name })
+      setDialogOpen(false)
+      return
     }
-    setDialogOpen(false)
+    setSaving(true)
+    try {
+      await addProduct(data)
+      toast.success("Produk ditambahkan", { description: data.name })
+      setDialogOpen(false)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menyimpan produk")
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     const product = products.find((p) => p.id === id)
-    deleteProduct(id)
-    toast.success("Produk dihapus", { description: product?.name })
-    setDeleteId(null)
+    try {
+      await deleteProduct(id)
+      toast.success("Produk dihapus", { description: product?.name })
+      setDeleteId(null)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menghapus produk")
+    }
   }
 
   const handleReset = () => {
@@ -483,7 +537,7 @@ export function ProductsPage() {
           }
       const res = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify(body),
       })
       if (!res.ok) {
@@ -503,7 +557,7 @@ export function ProductsPage() {
   const handleCatDelete = async (id: string, name: string) => {
     if (!confirm(`Hapus kategori "${name}"?`)) return
     try {
-      const res = await fetch(`/api/categories/${id}`, { method: "DELETE" })
+      const res = await fetch(`/api/categories/${id}`, { method: "DELETE", headers: authHeaders() })
       if (!res.ok) {
         const err = await res.json()
         throw new Error(err.error || "Gagal hapus")
@@ -726,8 +780,11 @@ export function ProductsPage() {
                       <Button size="icon-sm" variant="ghost" onClick={() => navigate(`/product/${p.id}`)}>
                         <Eye className="size-4" />
                       </Button>
-                      <Button size="icon-sm" variant="ghost" onClick={() => handleEdit(p)}>
+                      <Button size="icon-sm" variant="ghost" onClick={() => handleEdit(p)} title="Edit" aria-label="Edit produk">
                         <Pencil className="size-4" />
+                      </Button>
+                      <Button size="icon-sm" variant="ghost" onClick={() => handleCopy(p)} title="Salin produk" aria-label="Salin produk">
+                        <Copy className="size-4" />
                       </Button>
                       <Button size="icon-sm" variant="ghost" className="text-destructive" onClick={() => setDeleteId(p.id)}>
                         <Trash2 className="size-4" />
@@ -743,17 +800,25 @@ export function ProductsPage() {
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl p-0">
-          <DialogHeader className="px-6 pt-6">
+        <DialogContent className="gap-0 p-0 sm:max-w-5xl">
+          <DialogHeader className="px-6 pt-6 pb-4">
             <DialogTitle>
-              {editState.mode === "add" ? "Tambah Produk Baru" : "Edit Produk"}
+              {editState.mode === "edit" ? "Edit Produk" : editState.mode === "copy" ? "Salin Produk" : "Tambah Produk Baru"}
             </DialogTitle>
             <DialogDescription>
-              {editState.mode === "add" ? "Isi detail produk software baru" : "Perbarui informasi produk"}
+              {editState.mode === "edit"
+                ? "Perbarui informasi produk"
+                : editState.mode === "copy"
+                  ? `Data disalin dari ${editState.product?.name}. Ubah seperlunya lalu tekan Tambah Produk.`
+                  : "Isi detail produk software baru"}
             </DialogDescription>
           </DialogHeader>
           <ProductForm
+            // key memaksa form diisi ulang saat berganti produk atau mode
+            key={`${editState.mode}-${editState.product?.id ?? "new"}`}
             initial={editState.product}
+            asNew={editState.mode === "copy"}
+            saving={saving}
             onSave={handleSave}
             onCancel={() => setDialogOpen(false)}
           />
@@ -766,7 +831,8 @@ export function ProductsPage() {
           <DialogHeader>
             <DialogTitle>Hapus produk?</DialogTitle>
             <DialogDescription>
-              Produk akan dihapus permanen. Tindakan ini tidak dapat dibatalkan.
+              Produk hilang dari katalog dan menu. Pesanan, lisensi, dan unduhan pelanggan yang sudah membeli tetap
+              tersimpan.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">

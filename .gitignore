@@ -46,3 +46,9 @@ dev/
 
 # CodeBuddy internal data
 .codebuddy/
+
+# Backup database dari update.sh (berisi data pribadi)
+backups/
+
+# Rumus registrasi lisensi (rahasia, jangan masuk repo publik)
+app/server/private/

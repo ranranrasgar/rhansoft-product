@@ -1,3 +1,4 @@
+import { authHeaders } from "@/lib/auth"
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Mail, Search, Loader2, Users as UsersIcon } from "lucide-react"
@@ -22,7 +23,7 @@ export function CustomersPage() {
   const [search, setSearch] = useState("")
 
   useEffect(() => {
-    fetch("/api/admin/orders")
+    fetch("/api/admin/orders", { headers: authHeaders() })
       .then(async (res) => {
         if (!res.ok) throw new Error("Gagal")
         return res.json()

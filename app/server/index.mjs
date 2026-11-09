@@ -16,6 +16,9 @@
  *   POST /api/webhook                    — Midtrans payment notification webhook
  *   GET  /api/orders                     — list all orders
  */
+import crypto from "crypto"
+import { priceOrder, checkClientTotal, midtransAmount } from "./lib/pricing.mjs"
+import { registerSettingsRoutes, loadShippingSettings, loadTaxSettings } from "./lib/settingsRoutes.mjs"
 import path from "path"
 import { fileURLToPath } from "url"
 import express from "express"
@@ -26,6 +29,13 @@ import sharp from "sharp"
 import { PutObjectCommand } from "@aws-sdk/client-s3"
 import { r2Client, R2_BUCKET, getR2PublicUrl, isR2Configured } from "./lib/r2.mjs"
 import midtransClient from "midtrans-client"
+import { registerLicenseRoutes, fetchMyLicenseRequests } from "./lib/licenseRoutes.mjs"
+import { loadRegistrationGenerator } from "./lib/registrationGenerator.mjs"
+import { registerPaymentResultRoute } from "./lib/paymentResult.mjs"
+import { notifyAdminLicenseRequest, sendLicenseIssuedEmail, notifyAdminLegacyClaim } from "./lib/email.mjs"
+import { registerLegacyClaimRoutes } from "./lib/legacyClaimRoutes.mjs"
+import { isLegacyOrder, legacyOrderActionError } from "./lib/legacyClaims.mjs"
+import { registerProductWriteRoutes, resolveCategoryId, writeProductRelations, normalizeBenefits } from "./lib/productRoutes.mjs"
 import { pool, query, queryAll, queryOne, testConnection } from "./db/pool.mjs"
 import {
   registerUser,
@@ -116,9 +126,23 @@ app.get("/api/health", async (req, res) => {
   }
 })
 
+// ── Metode pembayaran yang ditawarkan di checkout ───────────────
+// Isi ENABLED_PAYMENT_METHODS di .env (pisah koma) sesuai channel yang sudah aktif
+// di dashboard Midtrans. Kosong = checkout tidak memilih metode; popup Midtrans
+// menampilkan semua metode yang aktif (default Midtrans).
+const ALL_PAYMENT_METHODS = ["card", "gopay", "bank_transfer", "shopeepay"]
+const ENABLED_PAYMENT_METHODS = (() => {
+  const list = (process.env.ENABLED_PAYMENT_METHODS || "")
+    .split(",")
+    .map((m) => m.trim())
+    .filter((m) => ALL_PAYMENT_METHODS.includes(m))
+  return list
+})()
+
 // ── Midtrans public config ──────────────────────────────────────
 app.get("/api/midtrans-config", (req, res) => {
   res.json({
+    paymentMethods: ENABLED_PAYMENT_METHODS,
     isProduction: IS_PRODUCTION,
     merchantId: MIDTRANS_MERCHANT_ID,
     clientKey: CLIENT_KEY,
@@ -281,7 +305,7 @@ app.get("/api/categories", async (req, res) => {
   }
 })
 
-app.post("/api/categories", async (req, res) => {
+app.post("/api/categories", authMiddleware("editor"), async (req, res) => {
   try {
     const { id, name, tagline, icon, gradient } = req.body
     if (!id || !name) {
@@ -303,7 +327,7 @@ app.post("/api/categories", async (req, res) => {
   }
 })
 
-app.put("/api/categories/:id", async (req, res) => {
+app.put("/api/categories/:id", authMiddleware("editor"), async (req, res) => {
   try {
     const { id } = req.params
     const { name, tagline, icon, gradient, sort_order } = req.body
@@ -325,7 +349,7 @@ app.put("/api/categories/:id", async (req, res) => {
   }
 })
 
-app.delete("/api/categories/:id", async (req, res) => {
+app.delete("/api/categories/:id", authMiddleware("editor"), async (req, res) => {
   try {
     const { id } = req.params
     // Cek apakah ada produk yang pakai kategori ini
@@ -349,7 +373,7 @@ app.delete("/api/categories/:id", async (req, res) => {
 // ── Image Upload ke Cloudflare R2 ─────────────────────────────────
 // POST /api/upload  (multipart/form-data, field: "image")
 // Kompres gambar (max 1200px width, quality 80) sebelum upload ke R2
-app.post("/api/upload", upload.single("image"), async (req, res) => {
+app.post("/api/upload", authMiddleware("editor"), upload.single("image"), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: "File gambar tidak ditemukan" })
@@ -505,6 +529,7 @@ app.get("/api/products", async (req, res) => {
       downloadSize: p.download_size,
       downloadLinks: p.download_links || [],
       installTutorial: p.install_tutorial || "",
+      benefits: p.benefits || [],
       featured: p.featured === true || p.featured === "true" || p.featured === true,
       platforms: p.platforms || [],
     }))
@@ -576,6 +601,7 @@ app.get("/api/products/:id", async (req, res) => {
       downloadSize: p.download_size,
       downloadLinks: p.download_links || [],
       installTutorial: p.install_tutorial || "",
+      benefits: p.benefits || [],
       featured: p.featured === true || p.featured === "true" || p.featured === true,
       platforms: p.platforms || [],
     }
@@ -632,27 +658,91 @@ app.get("/api/hero-slides", async (req, res) => {
 })
 
 // ── Create Midtrans Transaction ─────────────────────────────────
-app.post("/api/create-transaction", async (req, res) => {
+const MAX_CART_LINES = 50
+const MAX_ITEM_QUANTITY = 100
+
+app.post("/api/create-transaction", authMiddleware(), async (req, res) => {
   const client = await pool.connect()
 
   try {
     const {
       order_id,
-      gross_amount,
       customer,
-      items,
-      shipping_cost,
-      tax,
+      items: requestedItems,
       payment_method,
+      province,
     } = req.body
 
     // Validate
-    if (!order_id || !gross_amount || !customer || !items) {
+    // Catatan: gross_amount, items[].price, shipping_cost, dan tax dari client
+    // sengaja diabaikan — semua nominal dihitung ulang di server dari tabel products.
+    if (!order_id || !customer || !Array.isArray(requestedItems) || requestedItems.length === 0) {
       return res.status(400).json({
         error: "Missing required fields",
-        required: ["order_id", "gross_amount", "customer", "items"],
+        required: ["order_id", "customer", "items"],
       })
     }
+
+    if (requestedItems.length > MAX_CART_LINES) {
+      return res.status(400).json({ error: "Terlalu banyak item dalam keranjang" })
+    }
+
+    for (const it of requestedItems) {
+      if (!it || typeof it.id !== "string" || !it.id) {
+        return res.status(400).json({ error: "Item tidak valid" })
+      }
+      if (!Number.isInteger(it.quantity) || it.quantity < 1 || it.quantity > MAX_ITEM_QUANTITY) {
+        return res.status(400).json({ error: `Jumlah tidak valid untuk produk ${it.id}` })
+      }
+    }
+
+    // Ambil harga resmi dari database
+    const productIds = [...new Set(requestedItems.map((it) => it.id))]
+    const productRows = await client.query(
+      `SELECT p.id, p.name, p.price, c.name AS category_name
+       FROM products p
+       LEFT JOIN categories c ON c.id = p.category_id
+       WHERE p.id = ANY($1::varchar[]) AND p.is_active = TRUE`,
+      [productIds]
+    )
+    const productMap = new Map(productRows.rows.map((r) => [r.id, r]))
+    const unknownIds = productIds.filter((id) => !productMap.has(id))
+    if (unknownIds.length > 0) {
+      return res.status(400).json({ error: `Produk tidak ditemukan: ${unknownIds.join(", ")}` })
+    }
+
+    const items = requestedItems.map((it) => {
+      const p = productMap.get(it.id)
+      return {
+        id: p.id,
+        name: p.name,
+        price: Number(p.price),
+        quantity: it.quantity,
+        brand: "Rhansoft",
+        category: p.category_name || "Software",
+      }
+    })
+
+    // Harga, ongkir (pengaturan admin) dan item Midtrans dari satu fungsi teruji (lib/pricing.mjs);
+    // shipping_cost dari browser diabaikan
+    const priced = priceOrder({
+      items,
+      settings: await loadShippingSettings(queryOne),
+      province,
+      tax: await loadTaxSettings(queryOne),
+    })
+    if ("error" in priced) return res.status(400).json({ error: priced.error })
+    const { shipping: shippingCost, tax: taxAmount, total: totalAmount, itemDetails } = priced
+
+    // Pelanggan harus membayar persis yang ia lihat: bila total berbeda (pengaturan/harga berubah), minta muat ulang
+    const totalMismatch = checkClientTotal(req.body.gross_amount, totalAmount)
+    if (totalMismatch) return res.status(409).json(totalMismatch)
+
+    if (payment_method && ENABLED_PAYMENT_METHODS.length && !ENABLED_PAYMENT_METHODS.includes(payment_method)) {
+      return res.status(400).json({ error: "Metode pembayaran ini belum tersedia" })
+    }
+
+    await client.query("BEGIN")
 
     // 1. Insert or find customer
     let customerRow = await client.query(
@@ -682,16 +772,12 @@ app.post("/api/create-transaction", async (req, res) => {
     }
 
     // 2. Create order in DB
-    const shippingCost = shipping_cost || 0
-    const taxAmount = tax || 0
-    const totalAmount = Math.round(gross_amount)
-
     const orderRow = await client.query(
       `INSERT INTO orders
-        (order_id, customer_id, gross_amount, shipping_cost, tax, total_amount,
+        (order_id, customer_id, user_id, gross_amount, shipping_cost, tax, total_amount,
          payment_method, transaction_status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending') RETURNING id`,
-      [order_id, customerId, gross_amount, shippingCost, taxAmount, totalAmount, payment_method]
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending') RETURNING id`,
+      [order_id, customerId, req.user.id, totalAmount, shippingCost, taxAmount, totalAmount, payment_method]
     )
 
     const orderIdDb = orderRow.rows[0].id
@@ -707,14 +793,15 @@ app.post("/api/create-transaction", async (req, res) => {
           item.name,
           item.price,
           item.quantity,
-          item.brand || "Rhansoft",
-          item.category || "Software",
+          item.brand,
+          item.category,
         ]
       )
     }
 
     // 4. Build Midtrans parameter
-    const enabledPayments = getEnabledPayments(payment_method)
+    // Tanpa pilihan metode: biarkan Midtrans menampilkan semua channel yang aktif
+    const enabledPayments = payment_method ? getEnabledPayments(payment_method) : undefined
 
     // Midtrans requires ISO 3166-1 alpha-3 country_code (3 characters)
     const normalizeCountryCode = (code) => {
@@ -749,22 +836,7 @@ app.post("/api/create-transaction", async (req, res) => {
         phone: customer.phone,
         shipping_address: midtransShippingAddress,
       },
-      item_details: [
-        ...items.map((item) => ({
-          id: item.id,
-          name: item.name.length > 50 ? item.name.substring(0, 50) : item.name,
-          price: Math.round(item.price),
-          quantity: item.quantity,
-          brand: item.brand || "Rhansoft",
-          category: item.category || "Software",
-        })),
-        ...(shippingCost > 0
-          ? [{ id: "SHIPPING", name: "Ongkos Kirim", price: shippingCost, quantity: 1, brand: "Rhansoft", category: "Shipping" }]
-          : []),
-        ...(taxAmount > 0
-          ? [{ id: "TAX", name: "PPN 11%", price: taxAmount, quantity: 1, brand: "Rhansoft", category: "Tax" }]
-          : []),
-      ],
+      item_details: itemDetails,
       enabled_payments: enabledPayments,
       credit_card: payment_method === "card" ? { secure: true } : undefined,
     }
@@ -843,12 +915,52 @@ app.get("/api/transaction-status/:orderId", async (req, res) => {
   }
 })
 
+// Status pembayaran untuk halaman tujuan pengalihan Midtrans (dipakai juga oleh website lain di akun yang sama)
+registerPaymentResultRoute(app, { snap, queryOne })
+
+// Pengaturan sistem (ongkos kirim) yang diubah admin
+registerSettingsRoutes(app, { authMiddleware, queryOne })
+
 // ── Midtrans Webhook (payment notification) ────────────────────
 const handleWebhook = async (req, res) => {
+  // Keamanan: webhook ini bisa dipanggil siapa saja, jadi body-nya tidak boleh dipercaya.
+  // 1) tanda tangan Midtrans harus cocok, 2) status diambil langsung dari Midtrans,
+  // 3) nominal harus sama dengan pesanan di database.
+  const body = req.body || {}
+  const expected = crypto
+    .createHash("sha512")
+    .update(`${body.order_id}${body.status_code}${body.gross_amount}${SERVER_KEY}`)
+    .digest("hex")
+  const given = String(body.signature_key || "")
+  const signatureOk =
+    given.length === expected.length &&
+    crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected))
+  if (!signatureOk) {
+    console.warn(`⚠️ Webhook ditolak: signature tidak valid (order ${body.order_id})`)
+    return res.status(403).json({ error: "Signature tidak valid" })
+  }
+
+  let notif
+  try {
+    notif = await snap.transaction.status(body.order_id)
+  } catch (err) {
+    // Mis. notifikasi uji dari dashboard Midtrans atau transaksi belum ada: abaikan agar tidak diulang terus
+    console.warn(`⚠️ Webhook diabaikan: status ${body.order_id} tidak ditemukan di Midtrans`)
+    return res.status(200).json({ status: "ignored" })
+  }
+
+  const known = await queryOne("SELECT total_amount FROM orders WHERE order_id = $1", [notif.order_id])
+  if (!known) return res.status(200).json({ status: "ignored" })
+  if (midtransAmount(notif.gross_amount) !== Number(known.total_amount)) {
+    console.error(
+      `🚨 Webhook ditolak: nominal ${notif.gross_amount} tidak sama dengan pesanan ${notif.order_id} (${known.total_amount})`
+    )
+    return res.status(400).json({ error: "Nominal tidak cocok" })
+  }
+
   const client = await pool.connect()
 
   try {
-    const notif = req.body
 
     console.log("\n📥 Webhook Notification:")
     console.log(`   Order ID    : ${notif.order_id}`)
@@ -867,7 +979,7 @@ const handleWebhook = async (req, res) => {
         notif.transaction_id,
         notif.transaction_status,
         notif.payment_type,
-        notif.gross_amount,
+        midtransAmount(notif.gross_amount), // "4440.00" ditolak kolom BIGINT
         notif.fraud_status,
         notif.status_code,
         notif.status_message,
@@ -947,7 +1059,7 @@ app.post("/api/webhooks/midtrans/callback", handleWebhook)
 app.post("/api/payment/notification", handleWebhook)
 
 // ── List orders ─────────────────────────────────────────────────
-app.get("/api/orders", async (req, res) => {
+app.get("/api/orders", authMiddleware("admin"), async (req, res) => {
   try {
     const rows = await queryAll(
       `SELECT o.*, c.first_name, c.last_name, c.email, c.phone,
@@ -970,12 +1082,16 @@ app.get("/api/orders", async (req, res) => {
 })
 
 // ── Update product (admin) ───────────────────────────────────────
-app.put("/api/products/:id", async (req, res) => {
+// Tambah produk (juga Salin produk) dan Hapus (= sembunyikan)
+registerProductWriteRoutes(app, { authMiddleware, pool })
+
+app.put("/api/products/:id", authMiddleware("editor"), async (req, res) => {
   const client = await pool.connect()
   try {
     const { id } = req.params
     const {
       name,
+      category,
       price,
       originalPrice,
       description,
@@ -993,70 +1109,59 @@ app.put("/api/products/:id", async (req, res) => {
       gallery,
       featured,
       platformIds,
+      benefits,
     } = req.body
 
     await client.query("BEGIN")
+
+    // Update sebagian (mis. hanya { featured }) tidak boleh menimpa field lain dengan null
+    const curRes = await client.query("SELECT * FROM products WHERE id = $1", [id])
+    const cur = curRes.rows[0]
+    if (!cur) {
+      await client.query("ROLLBACK")
+      return res.status(404).json({ error: "Produk tidak ditemukan" })
+    }
+    let categoryId = cur.category_id
+    if (category !== undefined) {
+      categoryId = await resolveCategoryId(client, category)
+      if (!categoryId) {
+        await client.query("ROLLBACK")
+        return res.status(400).json({ error: "Kategori tidak ditemukan" })
+      }
+    }
+    const pick = (v, c) => (v === undefined ? c : v)
+    const json = (v) => (v == null ? null : JSON.stringify(v))
 
     await client.query(
       `UPDATE products SET
         name = $1, price = $2, original_price = $3, description = $4,
         image = $5, badge = $6, version = $7, platform = $8, license = $9,
         download_size = $10, color = $11, download_links = $12, install_tutorial = $13,
-        gallery = $14, featured = $15, updated_at = NOW()
-       WHERE id = $16`,
+        gallery = $14, featured = $15, category_id = $16, benefits = $17, updated_at = NOW()
+       WHERE id = $18`,
       [
-        name,
-        price,
-        originalPrice || null,
-        description,
-        image,
-        badge || null,
-        version,
-        platform,
-        license,
-        downloadSize,
-        color,
-        downloadLinks ? JSON.stringify(downloadLinks) : null,
-        installTutorial || null,
-        gallery ? JSON.stringify(gallery) : null,
-        featured === true || featured === "true",
+        pick(name, cur.name),
+        pick(price, cur.price),
+        originalPrice === undefined ? cur.original_price : originalPrice || null,
+        pick(description, cur.description),
+        pick(image, cur.image),
+        badge === undefined ? cur.badge : badge || null,
+        pick(version, cur.version),
+        pick(platform, cur.platform),
+        pick(license, cur.license),
+        pick(downloadSize, cur.download_size),
+        pick(color, cur.color),
+        downloadLinks === undefined ? json(cur.download_links) : json(downloadLinks || null),
+        installTutorial === undefined ? cur.install_tutorial : installTutorial || null,
+        gallery === undefined ? json(cur.gallery) : json(gallery || null),
+        featured === undefined ? cur.featured : featured === true || featured === "true",
+        categoryId,
+        benefits === undefined ? json(cur.benefits) : json(normalizeBenefits(benefits)),
         id,
       ]
     )
 
-    // Replace specs
-    await client.query("DELETE FROM product_specs WHERE product_id = $1", [id])
-    if (specs && Array.isArray(specs)) {
-      for (let j = 0; j < specs.length; j++) {
-        await client.query(
-          `INSERT INTO product_specs (product_id, label, value, sort_order) VALUES ($1, $2, $3, $4)`,
-          [id, specs[j].label, specs[j].value, j]
-        )
-      }
-    }
-
-    // Replace highlights
-    await client.query("DELETE FROM product_highlights WHERE product_id = $1", [id])
-    if (highlights && Array.isArray(highlights)) {
-      for (let j = 0; j < highlights.length; j++) {
-        await client.query(
-          `INSERT INTO product_highlights (product_id, highlight, sort_order) VALUES ($1, $2, $3)`,
-          [id, highlights[j], j]
-        )
-      }
-    }
-
-    // Replace product_platforms (many-to-many)
-    if (platformIds && Array.isArray(platformIds)) {
-      await client.query("DELETE FROM product_platforms WHERE product_id = $1", [id])
-      for (let j = 0; j < platformIds.length; j++) {
-        await client.query(
-          `INSERT INTO product_platforms (product_id, platform_id, sort_order) VALUES ($1, $2, $3)
-           ON CONFLICT (product_id, platform_id) DO NOTHING`,
-          [id, platformIds[j], j]
-        )
-      }
-    }
+    await writeProductRelations(client, id, { specs, highlights, platformIds })
 
     await client.query("COMMIT")
     res.json({ status: "ok", id })
@@ -1070,7 +1175,7 @@ app.put("/api/products/:id", async (req, res) => {
 })
 
 // ── List orders with items (admin) ───────────────────────────────
-app.get("/api/admin/orders", async (req, res) => {
+app.get("/api/admin/orders", authMiddleware("admin"), async (req, res) => {
   try {
     const rows = await queryAll(
       `SELECT o.*, c.first_name, c.last_name, c.email, c.phone,
@@ -1095,7 +1200,7 @@ app.get("/api/admin/orders", async (req, res) => {
 })
 
 // ── Resend email for an order (admin) ────────────────────────────
-app.post("/api/admin/resend-email/:orderId", async (req, res) => {
+app.post("/api/admin/resend-email/:orderId", authMiddleware("admin"), async (req, res) => {
   try {
     const { orderId } = req.params
     const order = await queryOne(
@@ -1126,7 +1231,292 @@ app.post("/api/admin/resend-email/:orderId", async (req, res) => {
   }
 })
 
-// ── Helper: enabled payments by method ──────────────────────────
+// ── Order actions (admin): approve, cancel, sync ─────────────────
+async function sendOrderEmailFor(orderId) {
+  const order = await queryOne(
+    `SELECT o.*, c.first_name, c.last_name, c.email, c.phone
+     FROM orders o
+     JOIN customers c ON o.customer_id = c.id
+     WHERE o.order_id = $1`,
+    [orderId]
+  )
+  if (!order) throw new Error("Order not found")
+  const items = await queryAll(
+    `SELECT oi.*, p.download_links, p.install_tutorial, p.name as current_name
+     FROM order_items oi
+     LEFT JOIN products p ON oi.product_id = p.id
+     WHERE oi.order_id = $1`,
+    [order.id]
+  )
+  const { sendOrderEmail } = await import("./lib/email.mjs")
+  await sendOrderEmail(order, items)
+}
+
+const isPaidStatus = (s) => s === "settlement" || s === "capture"
+
+// Ambil status terbaru dari Midtrans, simpan, dan kirim email lisensi bila baru lunas
+async function syncOrderFromMidtrans(order) {
+  const s = await snap.transaction.status(order.order_id)
+  const paid = isPaidStatus(s.transaction_status)
+  await query(
+    `UPDATE orders SET transaction_status = $1, payment_type = $2,
+       paid_at = COALESCE(paid_at, $3), transaction_id = $4
+     WHERE order_id = $5`,
+    [
+      s.transaction_status,
+      s.payment_type,
+      paid ? s.settlement_time || new Date().toISOString() : null,
+      s.transaction_id,
+      order.order_id,
+    ]
+  )
+  let emailSent = false
+  if (paid && !isPaidStatus(order.transaction_status) && s.fraud_status !== "deny") {
+    try {
+      await sendOrderEmailFor(order.order_id)
+      emailSent = true
+    } catch (e) {
+      console.error("⚠️ Sync: failed to send email:", e.message)
+    }
+  }
+  return { status: s.transaction_status, emailSent }
+}
+
+async function logOrderAction(order, status, paymentType, message, admin) {
+  await query(
+    `INSERT INTO payment_notifications
+      (order_id, transaction_status, payment_type, gross_amount, status_message, raw_notification)
+     VALUES ($1, $2, $3, $4, $5, $6)`,
+    [
+      order.order_id,
+      status,
+      paymentType,
+      order.gross_amount,
+      message,
+      JSON.stringify({ source: "admin", admin: admin.email }),
+    ]
+  )
+}
+
+app.post("/api/admin/orders/:orderId/action", authMiddleware("admin"), async (req, res) => {
+  try {
+    const { orderId } = req.params
+    const { action } = req.body
+    const order = await queryOne(`SELECT * FROM orders WHERE order_id = $1`, [orderId])
+    if (!order) return res.status(404).json({ error: "Pesanan tidak ditemukan" })
+    const legacyBlocked = legacyOrderActionError(order, action)
+    if (legacyBlocked) return res.status(legacyBlocked.status).json({ error: legacyBlocked.error })
+
+    if (action === "approve") {
+      // Konfirmasi pembayaran manual (mis. transfer yang dicek sendiri). Midtrans tidak tahu.
+      const row = await queryOne(
+        `UPDATE orders SET transaction_status = 'settlement', payment_type = 'manual', paid_at = NOW()
+         WHERE order_id = $1 AND transaction_status = 'pending' RETURNING order_id`,
+        [orderId]
+      )
+      if (!row) return res.status(409).json({ error: "Hanya pesanan pending yang bisa disetujui" })
+      await logOrderAction(order, "settlement", "manual", "Disetujui manual oleh admin", req.user)
+      let emailSent = false
+      try {
+        await sendOrderEmailFor(orderId)
+        emailSent = true
+      } catch (e) {
+        console.error("⚠️ Approve: failed to send email:", e.message)
+      }
+      console.log(`✅ Order ${orderId} disetujui manual oleh ${req.user.email}`)
+      return res.json({ status: "settlement", emailSent })
+    }
+
+    if (action === "cancel") {
+      if (order.transaction_status !== "pending") {
+        return res.status(409).json({ error: "Hanya pesanan pending yang bisa dibatalkan" })
+      }
+      try {
+        await snap.transaction.cancel(orderId)
+      } catch (e) {
+        // 404 = transaksi belum pernah dibayar/dibuat di Midtrans, aman dibatalkan lokal
+        if (!String(e.message).includes("404")) {
+          return res.status(502).json({ error: "Midtrans menolak pembatalan: " + e.message })
+        }
+      }
+      const row = await queryOne(
+        `UPDATE orders SET transaction_status = 'cancel'
+         WHERE order_id = $1 AND transaction_status = 'pending' RETURNING order_id`,
+        [orderId]
+      )
+      if (!row) return res.status(409).json({ error: "Status pesanan sudah berubah" })
+      await logOrderAction(order, "cancel", order.payment_type, "Dibatalkan oleh admin", req.user)
+      console.log(`🚫 Order ${orderId} dibatalkan oleh ${req.user.email}`)
+      return res.json({ status: "cancel" })
+    }
+
+    if (action === "refund") {
+      const reason = String(req.body.reason || "").trim()
+      if (!reason) return res.status(400).json({ error: "Alasan refund wajib diisi" })
+      if (!isPaidStatus(order.transaction_status)) {
+        return res.status(409).json({ error: "Hanya pesanan yang sudah dibayar yang bisa direfund" })
+      }
+      if (order.payment_type !== "manual") {
+        // Dikembalikan lewat Midtrans (hanya metode yang mendukung refund online, mis. kartu, GoPay, QRIS)
+        try {
+          await snap.transaction.refundDirect(orderId, {
+            refund_key: `rf-${orderId}-${Date.now()}`,
+            amount: Number(order.total_amount),
+            reason,
+          })
+        } catch (e) {
+          return res.status(502).json({ error: "Midtrans menolak refund: " + e.message })
+        }
+      }
+      const row = await queryOne(
+        `UPDATE orders SET transaction_status = 'refund'
+         WHERE order_id = $1 AND transaction_status IN ('settlement', 'capture') RETURNING order_id`,
+        [orderId]
+      )
+      if (!row) return res.status(409).json({ error: "Status pesanan sudah berubah" })
+      await logOrderAction(order, "refund", order.payment_type, `Refund: ${reason}`, req.user)
+      console.log(`↩️ Order ${orderId} direfund oleh ${req.user.email}: ${reason}`)
+      return res.json({ status: "refund", manual: order.payment_type === "manual" })
+    }
+
+    if (action === "sync") {
+      return res.json(await syncOrderFromMidtrans(order))
+    }
+
+    res.status(400).json({ error: "Aksi tidak dikenal" })
+  } catch (err) {
+    console.error("Order action error:", err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ── Pesanan saya (pelanggan login) ──────────────────────────────
+const SNAP_TOKEN_TTL_MS = 24 * 60 * 60 * 1000 // masa berlaku token Snap bawaan Midtrans
+
+async function getOwnOrder(orderId, userId) {
+  return queryOne(
+    `SELECT o.*, c.first_name, c.last_name, c.email, c.phone
+     FROM orders o LEFT JOIN customers c ON o.customer_id = c.id
+     WHERE o.order_id = $1 AND o.user_id = $2`,
+    [orderId, userId]
+  )
+}
+
+app.get("/api/my/orders", authMiddleware(), async (req, res) => {
+  try {
+    const orders = await queryAll(
+      `SELECT order_id, created_at, paid_at, total_amount, transaction_status, payment_type
+       FROM orders WHERE user_id = $1 ORDER BY created_at DESC`,
+      [req.user.id]
+    )
+    const items = await queryAll(
+      `SELECT o.order_id, oi.id AS order_item_id, oi.product_id, oi.product_name, oi.price, oi.quantity,
+              p.download_links, p.install_tutorial
+       FROM order_items oi
+       JOIN orders o ON oi.order_id = o.id
+       LEFT JOIN products p ON oi.product_id = p.id
+       WHERE o.user_id = $1
+       ORDER BY oi.id`,
+      [req.user.id]
+    )
+    const licenseRequests = await fetchMyLicenseRequests(queryAll, req.user.id)
+    res.json(
+      orders.map((o) => {
+        const paid = isPaidStatus(o.transaction_status)
+        return {
+          ...o,
+          items: items
+            .filter((i) => i.order_id === o.order_id)
+            .map((i) => ({
+              id: i.order_item_id,
+              license_requests: licenseRequests[i.order_item_id] || [],
+              product_id: i.product_id,
+              product_name: i.product_name,
+              price: i.price,
+              quantity: i.quantity,
+              // Link unduhan hanya untuk pesanan yang sudah lunas
+              download_links: paid ? i.download_links || [] : [],
+              install_tutorial: paid ? i.install_tutorial || null : null,
+            })),
+        }
+      })
+    )
+  } catch (err) {
+    console.error("GET /api/my/orders error:", err.message)
+    res.status(500).json({ error: "Gagal memuat pesanan" })
+  }
+})
+
+// Generator nomor registrasi: rumus ada di berkas pribadi di luar git (tidak tersedia bila berkasnya tidak ada)
+const registrationGenerator = await loadRegistrationGenerator()
+registerLicenseRoutes(app, {
+  authMiddleware,
+  queryOne,
+  queryAll,
+  pool,
+  notifyAdminLicenseRequest,
+  sendLicenseIssuedEmail,
+  generator: registrationGenerator,
+})
+
+// Klaim pelanggan lama: disetujui admin menjadi pesanan LEGACY- Rp 0
+registerLegacyClaimRoutes(app, { authMiddleware, queryOne, queryAll, pool, notifyAdminLegacyClaim })
+
+// Token pembayaran untuk melanjutkan pesanan yang belum dibayar
+app.post("/api/my/orders/:orderId/pay", authMiddleware(), async (req, res) => {
+  try {
+    const order = await getOwnOrder(req.params.orderId, req.user.id)
+    if (!order) return res.status(404).json({ error: "Pesanan tidak ditemukan" })
+    if (order.transaction_status !== "pending") {
+      return res.status(409).json({ error: "Pesanan ini tidak menunggu pembayaran" })
+    }
+    const age = Date.now() - new Date(order.created_at).getTime()
+    if (!order.snap_token || age > SNAP_TOKEN_TTL_MS) {
+      return res.status(409).json({ error: "Waktu pembayaran pesanan ini sudah habis. Silakan pesan ulang." })
+    }
+    res.json({
+      token: order.snap_token,
+      client_key: CLIENT_KEY,
+      snap_url: IS_PRODUCTION
+        ? "https://app.midtrans.com/snap/snap.js"
+        : "https://app.sandbox.midtrans.com/snap/snap.js",
+    })
+  } catch (err) {
+    res.status(500).json({ error: "Gagal menyiapkan pembayaran" })
+  }
+})
+
+// Cek status terbaru ke Midtrans (mis. setelah membayar)
+app.post("/api/my/orders/:orderId/refresh", authMiddleware(), async (req, res) => {
+  try {
+    const order = await getOwnOrder(req.params.orderId, req.user.id)
+    if (!order) return res.status(404).json({ error: "Pesanan tidak ditemukan" })
+    // Pesanan pelanggan lama tidak ada di Midtrans; statusnya tetap lunas
+    if (isLegacyOrder(order)) return res.json({ status: order.transaction_status, emailSent: false })
+    res.json(await syncOrderFromMidtrans(order))
+  } catch (err) {
+    // 404 dari Midtrans = pelanggan belum memilih metode bayar; status tetap
+    res.status(502).json({ error: "Belum ada pembaruan dari Midtrans" })
+  }
+})
+
+// Kirim ulang email lisensi/unduhan ke email akun untuk pesanan yang sudah lunas
+app.post("/api/my/orders/:orderId/resend-email", authMiddleware(), async (req, res) => {
+  try {
+    const order = await getOwnOrder(req.params.orderId, req.user.id)
+    if (!order) return res.status(404).json({ error: "Pesanan tidak ditemukan" })
+    if (!isPaidStatus(order.transaction_status)) {
+      return res.status(409).json({ error: "Email lisensi hanya untuk pesanan yang sudah lunas" })
+    }
+    await sendOrderEmailFor(order.order_id)
+    res.json({ status: "ok" })
+  } catch (err) {
+    console.error("my resend-email error:", err.message)
+    res.status(500).json({ error: "Gagal mengirim email" })
+  }
+})
+
+// ── Helper: enabled payments by method ────────────────────────────
 function getEnabledPayments(method) {
   switch (method) {
     case "card":
@@ -1160,7 +1550,6 @@ app.post("/api/trial/register", async (req, res) => {
   try {
     const {
       fullName,
-      nik,
       email,
       whatsapp,
       address,
@@ -1175,9 +1564,6 @@ app.post("/api/trial/register", async (req, res) => {
     if (!fullName || fullName.trim().length < 3) {
       return res.status(400).json({ error: "Nama lengkap wajib diisi (min 3 karakter)" })
     }
-    if (!nik || !/^\d{16}$/.test(nik.replace(/\D/g, ""))) {
-      return res.status(400).json({ error: "NIK harus 16 digit angka sesuai KTP" })
-    }
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ error: "Email wajib diisi dan harus valid" })
     }
@@ -1191,15 +1577,14 @@ app.post("/api/trial/register", async (req, res) => {
     // Insert to DB
     const row = await queryOne(
       `INSERT INTO trial_registrations
-        (registration_id, full_name, nik, email, whatsapp, address, city, province,
+        (registration_id, full_name, email, whatsapp, address, city, province,
          company, position, product_name, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'pending')
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending')
        RETURNING id, registration_id, full_name, email, whatsapp, city, province,
                  company, product_name, created_at`,
       [
         registrationId,
         fullName.trim(),
-        nik.replace(/\D/g, ""),
         email.trim().toLowerCase(),
         cleanPhone,
         address || "",
@@ -1249,23 +1634,42 @@ app.post("/api/trial/register", async (req, res) => {
     console.error("❌ Trial register error:", error.message)
     if (error.code === "23505") {
       // unique constraint violation
-      return res.status(409).json({ error: "Email atau NIK sudah terdaftar" })
+      return res.status(409).json({ error: "Email sudah terdaftar" })
     }
     res.status(500).json({ error: error.message })
   }
 })
 
 // ── List trial registrations (admin) ─────────────────────────────
-app.get("/api/trial/registrations", async (req, res) => {
+app.get("/api/trial/registrations", authMiddleware("admin"), async (req, res) => {
   try {
     const rows = await queryAll(
-      `SELECT id, registration_id, full_name, nik, email, whatsapp, address, city,
+      `SELECT id, registration_id, full_name, email, whatsapp, address, city,
               province, company, position, product_name, status, email_sent,
               email_sent_at, created_at
        FROM trial_registrations
        ORDER BY created_at DESC`
     )
     res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ── Update trial registration status (admin) ─────────────────────
+const TRIAL_STATUSES = ["pending", "contacted", "active", "expired"]
+app.put("/api/trial/registrations/:id/status", authMiddleware("admin"), async (req, res) => {
+  try {
+    const { status } = req.body
+    if (!TRIAL_STATUSES.includes(status)) {
+      return res.status(400).json({ error: "Status tidak valid" })
+    }
+    const row = await queryOne(
+      `UPDATE trial_registrations SET status = $1 WHERE id = $2 RETURNING id, status`,
+      [status, req.params.id]
+    )
+    if (!row) return res.status(404).json({ error: "Pendaftaran tidak ditemukan" })
+    res.json(row)
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

@@ -1,5 +1,5 @@
-import { useState } from "react"
-import { useNavigate, Link } from "react-router-dom"
+import { useState, useEffect } from "react"
+import { useNavigate, Link, Navigate } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -17,6 +17,9 @@ import {
 } from "lucide-react"
 import { toast } from "sonner"
 import { useCart } from "@/hooks/useCart"
+import { PROVINCES } from "@/lib/indonesia-provinces"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useAuth } from "@/hooks/useAuth"
 import {
   loadSnapScript,
   requestSnapToken,
@@ -30,6 +33,17 @@ function formatPrice(n: number) {
     currency: "IDR",
     minimumFractionDigits: 0,
   })
+}
+
+type TaxConfig = { enabled: boolean; rate: number; label: string }
+
+type ShippingConfig = {
+  enabled: boolean
+  mode: "flat" | "province"
+  label: string
+  flat_amount: number
+  default_amount: number
+  province_rates: Record<string, number>
 }
 
 type PaymentMethod = "card" | "gopay" | "bank_transfer" | "shopeepay"
@@ -76,6 +90,7 @@ const trustBadges = [
 export function CheckoutPage() {
   const navigate = useNavigate()
   const { items, subtotal, clear, itemCount } = useCart()
+  const { user, loading: authLoading } = useAuth()
 
   const [shipping, setShipping] = useState({
     firstName: "",
@@ -89,13 +104,71 @@ export function CheckoutPage() {
   })
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("card")
+  // null = belum dimuat; [] = pilihan default Midtrans (semua metode aktif); isi = daftar terbatas
+  const [enabledMethods, setEnabledMethods] = useState<PaymentMethod[] | null>(null)
   const [processing, setProcessing] = useState(false)
   const [snapReady, setSnapReady] = useState(false)
 
-  // Free shipping for orders above Rp 1.000.000, otherwise Rp 25.000
-  const shippingCost = subtotal >= 1000000 ? 0 : 25000
-  // PPN 11% (Indonesian VAT)
-  const tax = Math.round(subtotal * 0.11)
+  // Isi otomatis nama dan email dari akun yang login
+  useEffect(() => {
+    if (!user) return
+    setShipping((s) => ({
+      ...s,
+      firstName: s.firstName || user.first_name,
+      lastName: s.lastName || user.last_name,
+      email: s.email || user.email,
+    }))
+  }, [user])
+
+  // Hanya tampilkan metode yang aktif di server (sesuai channel Midtrans)
+  useEffect(() => {
+    fetch("/api/midtrans-config")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((conf) => {
+        const list: PaymentMethod[] = conf?.paymentMethods ?? []
+        setEnabledMethods(list)
+        if (list.length) setPaymentMethod((cur) => (list.includes(cur) ? cur : list[0]))
+      })
+      .catch(() => setEnabledMethods([]))
+  }, [])
+
+  // Pengaturan ongkos kirim dan pajak dari admin (perkiraan tampilan; total resmi dihitung server)
+  const [shippingConfig, setShippingConfig] = useState<ShippingConfig | null>(null)
+  const [taxConfig, setTaxConfig] = useState<TaxConfig | null>(null)
+  const [province, setProvince] = useState("")
+  const [shippingConfigError, setShippingConfigError] = useState(false)
+  // Tombol Bayar menunggu kedua konfigurasi ini, agar total yang tampil sama dengan yang ditagih
+  const loadShippingConfig = () => {
+    setShippingConfigError(false)
+    const get = (url: string) =>
+      fetch(url).then((res) => {
+        if (!res.ok) throw new Error()
+        return res.json()
+      })
+    Promise.all([get("/api/shipping-config"), get("/api/tax-config")])
+      .then(([shippingConf, taxConf]) => {
+        setShippingConfig(shippingConf)
+        setTaxConfig(taxConf)
+      })
+      .catch(() => setShippingConfigError(true))
+  }
+  useEffect(loadShippingConfig, [])
+  const needsProvince = Boolean(shippingConfig?.enabled && shippingConfig.mode === "province")
+
+  const useMidtransDefault = enabledMethods !== null && enabledMethods.length === 0
+  const visiblePaymentOptions = paymentOptions.filter((o) => enabledMethods?.includes(o.id))
+
+  // Sama dengan server (lib/shippingSettings.mjs): nonaktif 0, flat satu nominal, provinsi tarif atau tarif standar
+  const shippingCost = !shippingConfig?.enabled
+    ? 0
+    : shippingConfig.mode === "flat"
+      ? shippingConfig.flat_amount
+      : province
+        ? (shippingConfig.province_rates[province] ?? shippingConfig.default_amount)
+        : 0
+  const shippingLabel = shippingConfig?.label || "Ongkos Kirim"
+  // Sama dengan server (lib/taxSettings.mjs): nonaktif atau 0% berarti tanpa pajak; hanya atas subtotal
+  const tax = taxConfig?.enabled && taxConfig.rate ? Math.round((subtotal * taxConfig.rate) / 100) : 0
   const total = subtotal + shippingCost + tax
 
   const update = (field: keyof typeof shipping, value: string) =>
@@ -116,6 +189,10 @@ export function CheckoutPage() {
     }
     if (!shipping.address || !shipping.city || !shipping.postalCode) {
       toast.error("Mohon lengkapi alamat pengiriman")
+      return false
+    }
+    if (needsProvince && !province) {
+      toast.error("Mohon pilih provinsi")
       return false
     }
     return true
@@ -176,7 +253,8 @@ export function CheckoutPage() {
         items: itemDetails,
         shipping_cost: shippingCost,
         tax,
-        payment_method: paymentMethod,
+        payment_method: useMidtransDefault ? undefined : paymentMethod,
+        province: needsProvince ? province : undefined,
       })
 
       // 4. Open Midtrans Snap payment modal
@@ -189,15 +267,20 @@ export function CheckoutPage() {
           description: `Pesanan ${orderId} dikonfirmasi`,
         })
         clear()
-        navigate("/")
+        navigate("/akun/pesanan")
       } else if (result.status === "pending") {
         toast.info("Pembayaran tertunda", {
           description: "Selesaikan pembayaran dalam batas waktu yang ditentukan",
         })
+        clear()
+        navigate("/akun/pesanan")
       } else if (result.status === "closed") {
-        toast.warning("Pembayaran dibatalkan", {
-          description: "Anda menutup jendela pembayaran. Coba lagi saat siap.",
+        // Pesanan sudah tercatat; lanjutkan pembayaran dari Pesanan Saya (tanpa membuat pesanan ganda)
+        toast.warning("Pembayaran belum selesai", {
+          description: "Pesanan Anda tersimpan. Lanjutkan pembayaran dari halaman Pesanan Saya.",
         })
+        clear()
+        navigate("/akun/pesanan")
       } else {
         toast.error("Pembayaran gagal", {
           description: "Silakan coba metode pembayaran lain",
@@ -206,9 +289,19 @@ export function CheckoutPage() {
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Terjadi kesalahan"
       toast.error("Error pembayaran", { description: msg })
+      // Server menolak bila total berubah (ongkir/harga diperbarui): muat ulang pengaturan agar total diperbarui
+      loadShippingConfig()
     } finally {
       setProcessing(false)
     }
+  }
+
+  if (authLoading) {
+    return (
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <span className="size-6 animate-spin rounded-full border-2 border-muted border-t-primary" />
+      </div>
+    )
   }
 
   if (items.length === 0) {
@@ -223,6 +316,11 @@ export function CheckoutPage() {
         </Button>
       </div>
     )
+  }
+
+  // Wajib login agar pesanan terhubung ke akun (riwayat, bayar ulang, lisensi)
+  if (!user) {
+    return <Navigate to="/login" replace state={{ from: "/checkout" }} />
   }
 
   return (
@@ -324,6 +422,23 @@ export function CheckoutPage() {
                   autoComplete="postal-code"
                 />
               </div>
+              {needsProvince && (
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="province">Provinsi</Label>
+                  <Select value={province} onValueChange={setProvince}>
+                    <SelectTrigger id="province" className="w-full">
+                      <SelectValue placeholder="Pilih provinsi" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PROVINCES.map((p) => (
+                        <SelectItem key={p.name} value={p.name}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </div>
 
@@ -339,12 +454,19 @@ export function CheckoutPage() {
               Pilih metode pembayaran favorit Anda. Didukung oleh Midtrans.
             </p>
 
+            {useMidtransDefault && (
+              <p className="mt-6 rounded-xl border border-border p-4 text-sm text-muted-foreground">
+                Anda akan memilih metode pembayaran (kartu, e-wallet, transfer bank, dan lainnya)
+                di jendela pembayaran Midtrans setelah menekan tombol Bayar.
+              </p>
+            )}
+
             <RadioGroup
               value={paymentMethod}
               onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}
               className="mt-6 gap-3"
             >
-              {paymentOptions.map((opt) => {
+              {visiblePaymentOptions.map((opt) => {
                 const Icon = opt.icon
                 const isSelected = paymentMethod === opt.id
                 return (
@@ -426,16 +548,20 @@ export function CheckoutPage() {
                 <span className="text-muted-foreground">Subtotal</span>
                 <span className="font-medium">{formatPrice(subtotal)}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Ongkos Kirim</span>
-                <span className="font-medium">
-                  {shippingCost === 0 ? "Gratis" : formatPrice(shippingCost)}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">PPN (11%)</span>
-                <span className="font-medium">{formatPrice(tax)}</span>
-              </div>
+              {shippingCost > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">{shippingLabel}</span>
+                  <span className="font-medium">{formatPrice(shippingCost)}</span>
+                </div>
+              )}
+              {tax > 0 && taxConfig && (
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">
+                    {taxConfig.label} ({taxConfig.rate.toLocaleString("id-ID")}%)
+                  </span>
+                  <span className="font-medium">{formatPrice(tax)}</span>
+                </div>
+              )}
             </div>
 
             <Separator className="my-4" />
@@ -445,11 +571,20 @@ export function CheckoutPage() {
               <span className="text-2xl font-semibold">{formatPrice(total)}</span>
             </div>
 
+            {shippingConfigError && (
+              <div className="mt-4 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+                Gagal memuat ongkos kirim dan pajak, jadi total belum bisa dipastikan.{" "}
+                <button type="button" className="font-semibold underline" onClick={loadShippingConfig}>
+                  Coba lagi
+                </button>
+              </div>
+            )}
+
             <Button
               size="lg"
               className="mt-6 w-full rounded-full"
               onClick={handlePay}
-              disabled={processing}
+              disabled={processing || shippingConfig === null || taxConfig === null}
             >
               {processing ? (
                 <>

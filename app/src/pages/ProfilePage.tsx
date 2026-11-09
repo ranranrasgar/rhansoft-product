@@ -119,7 +119,7 @@ export function ProfilePage() {
 
         {/* My Orders */}
         <button
-          onClick={() => navigate("/admin/orders")}
+          onClick={() => navigate("/akun/pesanan")}
           className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-primary/40 hover:bg-accent/50 cursor-pointer"
         >
           <div className="flex size-10 items-center justify-center rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
