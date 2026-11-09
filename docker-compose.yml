@@ -1,0 +1,61 @@
+name: rhansoft-store
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: rhansoft-store-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-rhansoft_store_pass_2026}
+      POSTGRES_DB: ${DB_NAME:-rhansoft_store}
+      TZ: Asia/Jakarta
+    volumes:
+      - store_pgdata:/var/lib/postgresql/data
+      - ./app/server/db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-rhansoft_store}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build:
+      context: ./app/server
+      dockerfile: Dockerfile
+    image: rhansoft-store-api:latest
+    container_name: rhansoft-store-api
+    restart: unless-stopped
+    env_file:
+      - ./app/server/.env
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-rhansoft_store}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-rhansoft_store_pass_2026}
+      FRONTEND_URL: https://app.rhantech.com
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE: ""
+        VITE_GOOGLE_CLIENT_ID: "456401864985-if66ro8vpmfoc4sat2d1nvnrt7vca73c.apps.googleusercontent.com"
+    image: rhansoft-store-web:latest
+    container_name: rhansoft-store-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3520:80"
+    depends_on:
+      - api
+
+volumes:
+  store_pgdata:
+

@@ -21,7 +21,6 @@ import { toast } from "sonner"
 
 const WHATSAPP_NUMBER = "6281333335871"
 
-
 export function TrialRegisterPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -43,6 +42,7 @@ export function TrialRegisterPage() {
   const [processing, setProcessing] = useState(false)
   const [success, setSuccess] = useState(false)
 
+  
   const update = (field: keyof typeof form, value: string) =>
     setForm((f) => ({ ...f, [field]: value }))
 
@@ -89,7 +89,9 @@ export function TrialRegisterPage() {
       const data = await res.json()
       setSuccess(true)
       toast.success("Pendaftaran berhasil!", {
-        description: `Email konfirmasi telah dikirim ke ${form.email}`,
+        description: data.emailSent
+          ? `Surat konfirmasi terkirim ke ${form.email}`
+          : "Tim kami akan menghubungi via WhatsApp",
       })
 
       // Auto-redirect to WhatsApp after 3 seconds

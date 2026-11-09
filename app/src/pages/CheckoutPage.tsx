@@ -520,11 +520,11 @@ export function CheckoutPage() {
             <ul className="mt-4 space-y-3">
               {items.map((item) => (
                 <li key={item.id} className="flex gap-3">
-                  <div className="relative shrink-0">
+                  <div className="relative flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-none bg-muted/20 p-1">
                     <img
                       src={item.image}
                       alt={item.name}
-                      className="size-14 rounded-lg object-cover"
+                      className="max-h-full max-w-full object-contain"
                     />
                     <span className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full bg-primary text-[10px] font-semibold text-primary-foreground">
                       {item.quantity}

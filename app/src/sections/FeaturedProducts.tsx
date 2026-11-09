@@ -42,20 +42,21 @@ export function FeaturedProducts() {
   }
 
   return (
-    <section id="store" className="bg-secondary/40 py-20 md:py-28">
+    <section id="store" className="bg-secondary/40 py-10 md:py-20 lg:py-24">
       <div className="mx-auto max-w-7xl px-4 md:px-6">
-        <div className="mb-6 flex flex-col items-start justify-between gap-3 md:flex-row md:items-end">
+        <div className="mb-6 flex flex-col items-start justify-between gap-3 sm:mb-8 md:flex-row md:items-end">
           <div>
-            <p className="text-[13px] font-semibold uppercase tracking-widest text-primary">
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary">
               Software Katalog
             </p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight md:text-4xl">
+            <h2 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl md:text-4xl">
               {filterCategory ? filterCategory : "Semua Software"}
             </h2>
           </div>
           <Button
             variant="outline"
-            className="rounded-full"
+            size="sm"
+            className="rounded-full text-xs sm:text-sm"
             onClick={() => setFilterCategory(null)}
           >
             Lihat semua
@@ -90,19 +91,19 @@ export function FeaturedProducts() {
               <div
                 key={p.id}
                 onClick={() => goToProduct(p.id)}
-                className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all duration-300 hover:-translate-y-1 hover:shadow-xl cursor-pointer"
+                className="group relative flex flex-col overflow-hidden rounded-none border border-border bg-card transition-all duration-300 hover:-translate-y-1 hover:shadow-xl cursor-pointer"
               >
-                <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+                <div className="relative aspect-[4/3] flex items-center justify-center overflow-hidden rounded-none bg-muted/20 p-2">
                   <img
                     src={p.image}
                     alt={p.name}
-                    className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                    className="max-h-full max-w-full object-contain"
                     loading="lazy"
                   />
                   {p.badge && (
                     <Badge
                       variant={p.badge === "Sale" ? "destructive" : "default"}
-                      className="absolute left-3 top-3"
+                      className="absolute left-3 top-3 rounded-none"
                     >
                       {p.badge}
                     </Badge>

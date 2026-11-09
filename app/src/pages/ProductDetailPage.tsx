@@ -27,7 +27,6 @@ import {
   PackageCheck,
   Download,
   ExternalLink,
-  Play,
   Sparkles,
   Target,
   TrendingUp,
@@ -39,6 +38,8 @@ import {
   BarChart3,
   Cloud,
   Lock,
+  MessageCircle,
+  Laptop,
 } from "lucide-react"
 import { toast } from "sonner"
 import { getRelatedProducts, type Product } from "@/data/store"
@@ -82,23 +83,23 @@ function RelatedProductCard({ product }: { product: Product }) {
   const navigate = useNavigate()
   return (
     <div
-      className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card transition-all duration-300 hover:-translate-y-1 hover:shadow-xl cursor-pointer"
+      className="group relative flex flex-col overflow-hidden rounded-none border border-border bg-card transition-all duration-300 hover:-translate-y-1 hover:shadow-xl cursor-pointer"
       onClick={() => {
         navigate(`/product/${product.id}`)
         window.scrollTo({ top: 0, behavior: "smooth" })
       }}
     >
-      <div className="relative aspect-[4/3] overflow-hidden bg-muted">
+      <div className="relative aspect-[4/3] flex items-center justify-center overflow-hidden rounded-none bg-muted/20 p-2">
         <img
           src={product.image}
           alt={product.name}
-          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          className="max-h-full max-w-full object-contain"
           loading="lazy"
         />
         {product.badge && (
           <Badge
             variant={product.badge === "Sale" ? "destructive" : "default"}
-            className="absolute left-3 top-3"
+            className="absolute left-3 top-3 rounded-none"
           >
             {product.badge}
           </Badge>
@@ -304,32 +305,48 @@ export function ProductDetailPage() {
                 </div>
 
                 <div className="flex flex-col gap-3 sm:flex-row">
-                  <Button size="lg" className="flex-1 rounded-full" style={{ backgroundColor: product.color, borderColor: product.color }} onClick={handleBuyNow}>
+                  <Button size="lg" className="flex-1 rounded-none font-semibold text-white cursor-pointer" style={{ backgroundColor: product.color, borderColor: product.color }} onClick={handleBuyNow}>
                     Beli Sekarang
-                    <ArrowRight className="size-5" />
+                    <ArrowRight className="size-4.5" />
                   </Button>
-                  <Button size="lg" variant="outline" className="flex-1 rounded-full" onClick={handleAddToCart}>
-                    <ShoppingBag className="size-5" />
+                  <Button size="lg" variant="outline" className="flex-1 rounded-none font-semibold cursor-pointer" onClick={handleAddToCart}>
+                    <ShoppingBag className="size-4.5" />
                     Tambah ke Keranjang
                   </Button>
-                  <Button size="lg" variant="secondary" className="flex-1 rounded-full" onClick={openDemoWA}>
-                    <Play className="size-5" />
-                    Demo / Konsultasi
+                  <Button size="lg" className="flex-1 rounded-none font-semibold bg-[#25D366] hover:bg-[#20bd5a] text-white border-[#25D366] cursor-pointer" onClick={openDemoWA}>
+                    <MessageCircle className="size-4.5" />
+                    Coba Demo / Chat WA
                   </Button>
+                </div>
+
+                {/* Trust & Guarantee strip */}
+                <div className="mt-2 border border-border bg-muted/20 p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs">
+                  <span className="flex items-center gap-1.5 font-medium text-foreground">
+                    <ShieldCheck className="size-4 text-emerald-600 dark:text-emerald-400" />
+                    Beli Sekali (Tanpa Biaya Bulanan)
+                  </span>
+                  <span className="flex items-center gap-1.5 font-medium text-foreground">
+                    <Laptop className="size-4 text-primary" />
+                    Gratis Panduan Install via AnyDesk
+                  </span>
+                  <span className="flex items-center gap-1.5 font-medium text-foreground">
+                    <Database className="size-4 text-amber-600 dark:text-amber-400" />
+                    Database Mandiri / Bisa Offline
+                  </span>
                 </div>
               </div>
             </div>
 
             {/* Image */}
             <div className="order-1 lg:order-2">
-              <div className="relative overflow-hidden rounded-3xl border border-border bg-muted shadow-2xl">
+              <div className="relative flex items-center justify-center overflow-hidden rounded-none shadow-2xl">
                 <img
                   src={images[selectedImage]}
                   alt={product.name}
-                  className="aspect-[16/10] w-full object-cover"
+                  className="w-full h-auto max-h-[550px] object-contain rounded-none block"
                 />
                 {product.badge && (
-                  <Badge variant={product.badge === "Sale" ? "destructive" : "default"} className="absolute left-4 top-4">
+                  <Badge variant={product.badge === "Sale" ? "destructive" : "default"} className="absolute left-4 top-4 rounded-none">
                     {product.badge}
                   </Badge>
                 )}
@@ -501,11 +518,11 @@ export function ProductDetailPage() {
                 ))}
               </ul>
             </div>
-            <div className="rounded-3xl border border-border bg-background p-2 shadow-xl">
+            <div className="flex items-center justify-center rounded-none shadow-xl">
               <img
                 src={images[0]}
                 alt={`${product.name} preview`}
-                className="aspect-video w-full rounded-2xl object-cover"
+                className="w-full h-auto max-h-[450px] rounded-none object-contain block"
               />
             </div>
           </div>
@@ -521,10 +538,9 @@ export function ProductDetailPage() {
           </div>
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {images.map((_img, i) => (
-              <div key={i} className="group relative overflow-hidden rounded-2xl border border-border bg-muted">
-                <img src={_img} alt={`${product.name} screenshot ${i + 1}`} className="aspect-[4/3] w-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
-                <p className="absolute bottom-4 left-4 text-sm font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">Tampilan {i + 1}</p>
+              <div key={i} className="group relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-none bg-muted/20 p-2">
+                <img src={_img} alt={`${product.name} screenshot ${i + 1}`} className="max-h-full max-w-full object-contain" loading="lazy" />
+                <p className="absolute bottom-2 left-2 rounded-none bg-black/75 px-2 py-0.5 text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">Tampilan {i + 1}</p>
               </div>
             ))}
           </div>

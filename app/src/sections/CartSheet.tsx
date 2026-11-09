@@ -64,12 +64,14 @@ export function CartSheet({ open, onOpenChange }: Props) {
             <ul className="space-y-4">
               {items.map((item) => (
                 <li key={item.id} className="flex gap-3">
-                  <img
-                    src={item.image}
-                    alt={item.name}
-                    className="size-16 shrink-0 rounded-lg object-cover"
-                    loading="lazy"
-                  />
+                  <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-none bg-muted/20 p-1">
+                    <img
+                      src={item.image}
+                      alt={item.name}
+                      className="max-h-full max-w-full object-contain"
+                      loading="lazy"
+                    />
+                  </div>
                   <div className="flex flex-1 flex-col">
                     <div className="flex items-start justify-between gap-2">
                       <div>

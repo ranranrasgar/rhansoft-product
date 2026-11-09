@@ -235,11 +235,11 @@ export function SearchDialog({ open, onOpenChange }: Props) {
                 onSelect={() => handleSelectProduct(p)}
                 className="flex items-center gap-3 rounded-lg px-2 py-2"
               >
-                <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-muted p-0.5">
+                <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-none bg-muted/30 p-0.5">
                   <img
                     src={p.image}
                     alt={p.name}
-                    className="max-h-full max-w-full object-contain"
+                    className="max-h-full max-w-full rounded-none object-contain"
                     loading="lazy"
                   />
                 </div>

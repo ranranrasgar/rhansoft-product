@@ -127,7 +127,8 @@
         "/img/toko-pos.jpg",
         "/img/toko-report.jpg",
         "/img/toko-barang.jpg"
-      ]
+      ],
+      "featured": true
     },
     {
       "id": "sw-pos",
@@ -368,7 +369,8 @@
       "gallery": [
         "/img/accounting-main.png",
         "/img/accounting-2.png"
-      ]
+      ],
+      "featured": true
     },
     {
       "id": "sw-klinik",
@@ -428,7 +430,8 @@
       "gallery": [
         "/img/klinik-main.jpg",
         "/img/klinik-2.jpg"
-      ]
+      ],
+      "featured": true
     },
     {
       "id": "sw-apotik",
@@ -669,7 +672,8 @@
       "gallery": [
         "/img/cafe-main.png",
         "/img/cafe-2.png"
-      ]
+      ],
+      "featured": true
     },
     {
       "id": "sw-futsal",
@@ -789,7 +793,8 @@
       "gallery": [
         "/img/wablast-main.png",
         "/img/wablast-2.png"
-      ]
+      ],
+      "featured": true
     },
     {
       "id": "sw-diagnosa",
@@ -970,7 +975,8 @@
         "/img/screenshots/ss-002.png",
         "/img/screenshots/ss-003.png",
         "/img/screenshots/ss-004.png"
-      ]
+      ],
+      "featured": true
     },
     {
       "id": "web-pegawai",
@@ -1158,7 +1164,8 @@
         "/img/screenshots/ss-014.png",
         "/img/screenshots/ss-015.png",
         "/img/screenshots/ss-016.png"
-      ]
+      ],
+      "featured": true
     },
     {
       "id": "web-siakad",
@@ -1344,7 +1351,8 @@
         "/img/screenshots/ss-026.png",
         "/img/screenshots/ss-027.png",
         "/img/screenshots/ss-028.png"
-      ]
+      ],
+      "featured": true
     },
     {
       "id": "mobile-jajanan",

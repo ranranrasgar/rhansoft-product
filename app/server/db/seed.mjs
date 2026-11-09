@@ -22,7 +22,11 @@ const pool = new Pool({
 })
 
 // ── Load data from JSON ─────────────────────────────────────────
-const dataPath = new URL("./seed-data.json", import.meta.url).pathname.replace(/^\//, "")
+import { fileURLToPath } from "url"
+import path from "path"
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const dataPath = path.join(__dirname, "seed-data.json")
 let raw = fs.readFileSync(dataPath, "utf-8")
 // Strip BOM if present
 if (raw.charCodeAt(0) === 0xfeff) raw = raw.slice(1)

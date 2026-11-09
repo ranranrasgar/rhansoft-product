@@ -335,8 +335,8 @@ function ProductForm({
           <Label>Gallery Images</Label>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {gallery.map((img, idx) => (
-              <div key={idx} className="relative">
-                <img src={img} alt={`Gallery ${idx + 1}`} className="aspect-video w-full rounded-lg border border-border object-cover" />
+              <div key={idx} className="relative aspect-video flex items-center justify-center overflow-hidden rounded-none bg-muted/20 p-1">
+                <img src={img} alt={`Gallery ${idx + 1}`} className="max-h-full max-w-full object-contain" />
                 <button
                   type="button"
                   onClick={() => setGallery((prev) => prev.filter((_, i) => i !== idx))}
@@ -740,7 +740,9 @@ export function ProductsPage() {
                 <tr key={p.id} className="border-t border-border hover:bg-muted/30">
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <img src={p.image} alt={p.name} className="size-10 rounded-lg object-cover" />
+                      <div className="flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-none bg-muted/20 p-0.5">
+                        <img src={p.image} alt={p.name} className="max-h-full max-w-full object-contain" />
+                      </div>
                       <span className="font-medium">{p.name}</span>
                     </div>
                   </td>
