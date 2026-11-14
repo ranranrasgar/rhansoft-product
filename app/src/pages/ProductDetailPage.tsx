@@ -46,6 +46,7 @@ import { getRelatedProducts, type Product } from "@/data/store"
 import { useProducts } from "@/hooks/useProducts"
 import { useCart } from "@/hooks/useCart"
 import { useNavContext } from "@/lib/navigate"
+import { SiakadDetailShowcase } from "@/components/SiakadDetailShowcase"
 
 function formatPrice(n: number) {
   return n.toLocaleString("id-ID", {
@@ -147,6 +148,15 @@ const faqItems = [
   { q: "Apakah ada biaya langganan tahunan?", a: "Tidak. Lisensi bersifat lifetime — bayar sekali, gunakan selamanya. Update minor gratis." },
   { q: "Bagaimana cara mendapatkan support teknis?", a: "Support via WhatsApp, email, dan remote desktop Senin–Sabtu, 09.00–18.00 WIB." },
   { q: "Apakah software bisa dicoba sebelum beli?", a: "Ya, tersedia versi demo gratis. Klik tombol Demo / Konsultasi untuk mencoba fitur utama." },
+]
+
+const siakadFaqItems = [
+  { q: "Apakah ada batasan jumlah siswa dan guru di SiAkad ini?", a: "Tidak ada batasan (Unlimited). Anda dapat mendaftarkan ratusan hingga ribuan siswa dan guru tanpa biaya tambahan per siswa." },
+  { q: "Apakah guru dan siswa bisa mengakses dari smartphone (HP)?", a: "Ya, sistem mendukung Progressive Web App (PWA) responsif yang dapat diakses langsung dari browser HP Android maupun iPhone dan dipasang ke Home Screen layaknya aplikasi native." },
+  { q: "Bagaimana cara kerja Smart Absensi Face Recognition AI?", a: "Sistem menggunakan kamera perangkat (webcam PC, tablet, atau smartphone) yang mendeteksi wajah secara otomatis (touchless) dan mencatat waktu presensi detik demi detik secara real-time ke database." },
+  { q: "Apakah CBT mendukung rumus matematika dan gambar?", a: "Ya, editor paket soal CBT terintegrasi dengan MathJax (rumus matematika, fisika, kimia) dan Rich HTML untuk gambar dan tabel." },
+  { q: "Apakah sistem bisa dijalankan di server lokal sekolah (offline LAN)?", a: "Bisa. SiAkad dapat di-deploy baik di Cloud VPS (agar diakses dari mana saja) maupun di Server Lokal Sekolah tanpa internet (offline LAN) saat pelaksanaan ujian CBT." },
+  { q: "Apakah mendapatkan full source code dan bantuan instalasi?", a: "Ya, paket mencakup Full Source Code serta pendampingan instalasi dan setup awal gratis via AnyDesk dari tim teknisi Rhansoft." },
 ]
 
 export function ProductDetailPage() {
@@ -403,6 +413,9 @@ export function ProductDetailPage() {
         </div>
       </section>
 
+      {/* Showcase Khusus SiAkad SMP/SMK & Mobile PWA */}
+      {product.id === "web-siakad" && <SiakadDetailShowcase />}
+
       {/* Deskripsi lengkap */}
       <section className="mx-auto max-w-7xl px-4 py-14 md:px-6 md:py-20">
         <div className="mx-auto max-w-3xl text-center">
@@ -613,7 +626,7 @@ export function ProductDetailPage() {
           <h2 className="mt-3 text-2xl font-bold tracking-tight md:text-3xl">Pertanyaan yang sering diajukan</h2>
         </div>
         <Accordion type="single" defaultValue="faq-0" className="space-y-3">
-          {faqItems.map((item, i) => (
+          {(product.id === "web-siakad" ? siakadFaqItems : faqItems).map((item, i) => (
             <AccordionItem key={i} value={`faq-${i}`} className="rounded-2xl border border-border bg-card px-5">
               <AccordionTrigger className="text-left text-sm font-semibold hover:no-underline">{item.q}</AccordionTrigger>
               <AccordionContent className="text-sm text-muted-foreground">{item.a}</AccordionContent>

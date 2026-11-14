@@ -1169,65 +1169,96 @@
     },
     {
       "id": "web-siakad",
-      "name": "Sistem Akademik Sekolah (SiAkad)",
+      "name": "Sistem Akademik Sekolah (SiAkad & CBT SMP/SMK)",
       "category": "Web Based",
       "price": 2800000,
-      "rating": 4.7,
-      "reviews": 98,
-      "badge": "New",
-      "image": "/img/screenshots/ss-017.png",
-      "color": "#8b5cf6",
-      "description": "Aplikasi web sistem akademik sekolah untuk SD/SMP/SMA. Fitur data siswa, KRS, jadwal, nilai, rapor digital (e-rapor), presensi, dan PPDB online. Multi level user: admin, guru, siswa, & wali murid.",
-      "platform": "Web Based (PHP/Laravel)",
-      "version": "4.0",
-      "license": "Lifetime + Source Code",
-      "downloadSize": "Hosting sendiri",
+      "originalPrice": 4500000,
+      "rating": 4.9,
+      "reviews": 142,
+      "badge": "Terlaris",
+      "image": "/img/siakad/01-dashboard-administrator.jpg",
+      "color": "#059669",
+      "description": "Sistem Informasi Akademik Sekolah (SiAkad) & Computer Based Test (CBT) modern terpadu untuk jenjang SMP, SMK, dan Pondok Pesantren. Dilengkapi Smart Absensi AI Face Recognition, monitoring KBM, kalender presensi bulanan, manajemen jadwal & guru pengganti (inval), buku nilai & e-rapor digital, database kesiswaan, gamifikasi Hall of Fame prestasi siswa, bank soal CBT dengan live smartphone preview, serta portal mobile PWA (Progressive Web App) responsif untuk smartphone guru dan siswa.",
+      "platform": "Web Based & Mobile PWA (iOS / Android)",
+      "version": "5.0",
+      "license": "Lifetime + Full Source Code",
+      "downloadSize": "Cloud VPS / Server Lokal (Offline LAN Ready)",
       "specs": [
         {
           "label": "Platform",
-          "value": "Web Based"
+          "value": "Web Based + Mobile PWA (iOS/Android)"
         },
         {
-          "label": "Framework",
-          "value": "Laravel 10"
+          "label": "Smart Absensi",
+          "value": "AI Face Recognition (Biometric Camera)"
         },
         {
-          "label": "Database",
-          "value": "MySQL"
+          "label": "Ujian CBT",
+          "value": "PG, Multi-Choice, Jodoh, Essay + MathJax"
         },
         {
-          "label": "Versi",
-          "value": "4.0"
+          "label": "Jadwal & Inval",
+          "value": "Tampilan Kolom & Kelola Guru Pengganti"
+        },
+        {
+          "label": "Gamifikasi",
+          "value": "Hall of Fame & Leaderboard Prestasi Siswa"
+        },
+        {
+          "label": "E-Rapor & Nilai",
+          "value": "Buku Nilai Digital & Normalisasi Skala 100"
+        },
+        {
+          "label": "Multi User",
+          "value": "Superadmin, Kepala Sekolah, Guru, Siswa, Wali"
+        },
+        {
+          "label": "Deployment",
+          "value": "Cloud VPS atau Server Lokal Sekolah (Offline LAN)"
         },
         {
           "label": "Lisensi",
-          "value": "Lifetime + Source Code"
-        },
-        {
-          "label": "E-Rapor",
-          "value": "Cetak rapor digital"
-        },
-        {
-          "label": "PPDB",
-          "value": "Online registration"
-        },
-        {
-          "label": "Multi Level",
-          "value": "Admin, guru, siswa, wali"
+          "value": "Lifetime + Full Source Code (Bebas Biaya Bulanan)"
         }
       ],
       "highlights": [
-        "E-Rapor digital cetak otomatis",
-        "PPDB online dengan seleksi",
-        "Jadwal & nilai online real-time",
-        "Multi level: admin, guru, siswa, wali"
+        "Smart Absensi AI Face Recognition (Biometric Scanner kamera touchless)",
+        "Portal Mobile PWA guru & siswa (Add to Home Screen tanpa ribet PlayStore)",
+        "CBT Ujian Sekolah interaktif lengkap dengan Live Smartphone Preview siswa",
+        "Manajemen jadwal pelajaran format kolom & sistem izin Guru Pengganti (Inval)",
+        "Gamifikasi 'Hall of Fame' ranking performa siswa untuk dorong motivasi",
+        "Rekap kehadiran & JP (Jam Pelajaran) akurat per mapel dan bulanan",
+        "Master kesiswaan lengkap: cetak info login PDF massal & kartu pelajar",
+        "Buku nilai digital dengan kalkulasi & normalisasi otomatis skala 100"
+      ],
+      "benefits": [
+        "Efisiensi operasional sekolah hingga 85%: rekap presensi, jadwal, dan nilai otomatis tanpa kalkulasi manual berulang.",
+        "Tingkat kehadiran terpantau ketat secara real-time via kamera Face Recognition AI, mencegah titip absen dan keterlambatan.",
+        "Guru mengajar lebih nyaman dengan portal mobile di smartphone, siap mencatat kehadiran kelas kapan saja dan mengajukan guru pengganti saat berhalangan.",
+        "Pelaksanaan ujian PTS/PAS/PSAT hemat biaya cetak jutaan rupiah dengan sistem CBT anti-kecurangan dan penilaian instan.",
+        "Meningkatkan reputasi sekolah di mata orang tua dan dinas pendidikan dengan sistem digital modern, rapi, dan terintegrasi.",
+        "Beli sekali untuk selamanya tanpa biaya langganan bulanan / tahunan per siswa, bebas dipasang di VPS maupun server lokal sekolah."
       ],
       "gallery": [
-        "/img/screenshots/ss-017.png",
-        "/img/screenshots/ss-018.png",
-        "/img/screenshots/ss-019.png",
-        "/img/screenshots/ss-020.png"
-      ]
+        "/img/siakad/01-dashboard-administrator.jpg",
+        "/img/siakad/02-absensi-face-recognition.jpg",
+        "/img/siakad/03-absensi-kbm-mapel.jpg",
+        "/img/siakad/04-absensi-kalender-bulanan.jpg",
+        "/img/siakad/05-rekap-kehadiran-persentase.jpg",
+        "/img/siakad/06-gamifikasi-hall-of-fame.jpg",
+        "/img/siakad/07-jadwal-pelajaran-kolom.jpg",
+        "/img/siakad/08-guru-pengganti-inval.png",
+        "/img/siakad/09-rekap-nilai-harian-erapor.jpg",
+        "/img/siakad/10-kesiswaan-database-siswa.jpg",
+        "/img/siakad/11-ujian-cbt-bank-soal.jpg",
+        "/img/siakad/12-cbt-editor-live-preview.png",
+        "/img/siakad/mobile-01-beranda-pwa.jpg",
+        "/img/siakad/mobile-02-jadwal-libur.png",
+        "/img/siakad/mobile-03-daftar-sesi-mengajar.png",
+        "/img/siakad/mobile-04-presensi-capaian-guru.png",
+        "/img/siakad/mobile-05-absensi-siswa-mobile.png"
+      ],
+      "featured": true
     },
     {
       "id": "web-pengaduan",
