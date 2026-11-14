@@ -46,6 +46,7 @@ import {
   authMiddleware,
 } from "./lib/auth.mjs"
 import { registerAdRoutes } from "./lib/ads.mjs"
+import { registerAnalyticsRoutes } from "./lib/analyticsRoutes.mjs"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 dotenv.config({ path: path.resolve(__dirname, ".env") })
@@ -1677,6 +1678,9 @@ app.put("/api/trial/registrations/:id/status", authMiddleware("admin"), async (r
 
 // ── Rhansoft Ads (iklan produk untuk aplikasi lain) — lihat lib/ads.mjs ──
 registerAdRoutes(app)
+
+// ── Rhansoft Analytics & Traffic Tracking ──
+registerAnalyticsRoutes(app, { queryAll, queryOne, query, authMiddleware })
 
 // ═══════════════════════════════════════════════════════════════
 //  START SERVER

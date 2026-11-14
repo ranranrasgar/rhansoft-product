@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useParams, useNavigate, Link } from "react-router-dom"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -47,6 +47,7 @@ import { useProducts } from "@/hooks/useProducts"
 import { useCart } from "@/hooks/useCart"
 import { useNavContext } from "@/lib/navigate"
 import { ProductGroupedShowcase } from "@/components/ProductGroupedShowcase"
+import { sendTrackEvent } from "@/lib/tracker"
 
 function formatPrice(n: number) {
   return n.toLocaleString("id-ID", {
@@ -189,6 +190,17 @@ export function ProductDetailPage() {
 
   const benefits = product.benefits?.length ? product.benefits : defaultBenefits
 
+  useEffect(() => {
+    if (product) {
+      sendTrackEvent({
+        path: window.location.pathname,
+        productId: product.id,
+        action: "product_view",
+        metadata: { name: product.name, price: product.price, category: product.category },
+      })
+    }
+  }, [product?.id])
+
   const steps = useMemo(() => {
     if (!product.installTutorial?.trim()) return []
     return product.installTutorial
@@ -198,6 +210,12 @@ export function ProductDetailPage() {
   }, [product.installTutorial])
 
   const handleAddToCart = () => {
+    sendTrackEvent({
+      path: window.location.pathname,
+      productId: product.id,
+      action: "add_to_cart",
+      metadata: { name: product.name, price: product.price, quantity },
+    })
     for (let i = 0; i < quantity; i++) addItem(product)
     toast.success(`${product.name} ditambahkan ke keranjang`, {
       description: `${quantity} × ${formatPrice(product.price)}`,
@@ -205,6 +223,12 @@ export function ProductDetailPage() {
   }
 
   const handleBuyNow = () => {
+    sendTrackEvent({
+      path: window.location.pathname,
+      productId: product.id,
+      action: "checkout_start",
+      metadata: { name: product.name, price: product.price, quantity },
+    })
     addItem(product)
     toast.success(`${product.name} ditambahkan ke keranjang`, {
       description: "Mengalihkan ke checkout...",
@@ -213,11 +237,23 @@ export function ProductDetailPage() {
   }
 
   const openDemoWA = () => {
+    sendTrackEvent({
+      path: window.location.pathname,
+      productId: product.id,
+      action: "consultation_click",
+      metadata: { name: product.name, type: "demo" },
+    })
     const text = encodeURIComponent(`Halo Rhansoft, saya ingin demo / konsultasi untuk ${product.name}.`)
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${text}`, "_blank")
   }
 
   const openContactWA = () => {
+    sendTrackEvent({
+      path: window.location.pathname,
+      productId: product.id,
+      action: "consultation_click",
+      metadata: { name: product.name, type: "contact" },
+    })
     const text = encodeURIComponent(`Halo Rhansoft, saya tertarik dengan ${product.name}. Mohon info lebih lanjut.`)
     window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${text}`, "_blank")
   }

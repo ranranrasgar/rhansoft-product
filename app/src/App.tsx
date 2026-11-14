@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react"
+import { lazy, Suspense, useEffect } from "react"
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom"
 import { GoogleOAuthProvider } from "@react-oauth/google"
 import { Toaster } from "@/components/ui/sonner"
@@ -8,6 +8,7 @@ import { AuthProvider } from "@/hooks/useAuth"
 import { ProductProvider } from "@/hooks/useProducts"
 import { MasterDataProvider } from "@/hooks/useMasterData"
 import { GOOGLE_CLIENT_ID } from "@/lib/env"
+import { sendTrackEvent } from "@/lib/tracker"
 import { Header } from "@/sections/Header"
 import { HeroCarousel } from "@/sections/HeroCarousel"
 import { TrustPillBanner } from "@/components/TrustPillBanner"
@@ -56,6 +57,16 @@ function HomePage() {
 function AppLayout() {
   const location = useLocation()
   const isAdmin = location.pathname.startsWith("/admin")
+
+  useEffect(() => {
+    // Only track public visits, avoid skewing analytics with admin navigation
+    if (!isAdmin) {
+      sendTrackEvent({
+        path: location.pathname + (location.search || ""),
+        action: "pageview",
+      })
+    }
+  }, [location.pathname, location.search, isAdmin])
 
   return (
     <AuthProvider>

@@ -20,6 +20,7 @@ import { useCart } from "@/hooks/useCart"
 import { PROVINCES } from "@/lib/indonesia-provinces"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/hooks/useAuth"
+import { sendTrackEvent } from "@/lib/tracker"
 import {
   loadSnapScript,
   requestSnapToken,
@@ -246,6 +247,16 @@ export function CheckoutPage() {
 
       // 3. Request Snap token from backend (real Midtrans API)
       toast.info("Membuat transaksi...")
+      sendTrackEvent({
+        path: "/checkout",
+        action: "order_start",
+        metadata: {
+          order_id: orderId,
+          gross_amount: Math.round(total),
+          items_count: items.length,
+          product_ids: items.map((i) => i.id),
+        },
+      })
       const { token, snap_url, client_key } = await requestSnapToken({
         order_id: orderId,
         gross_amount: Math.round(total),
@@ -263,6 +274,14 @@ export function CheckoutPage() {
 
       // 5. Handle payment result
       if (result.status === "success") {
+        sendTrackEvent({
+          path: "/checkout",
+          action: "order_paid",
+          metadata: {
+            order_id: orderId,
+            gross_amount: Math.round(total),
+          },
+        })
         toast.success("Pembayaran berhasil!", {
           description: `Pesanan ${orderId} dikonfirmasi`,
         })
