@@ -69,3 +69,4 @@ INSERT INTO product_highlights (product_id, highlight, sort_order) VALUES
   ('web-siakad', 'Rekap kehadiran & JP (Jam Pelajaran) akurat per mapel dan bulanan', 6),
   ('web-siakad', 'Master kesiswaan lengkap: cetak info login PDF massal & kartu pelajar', 7),
   ('web-siakad', 'Buku nilai digital dengan kalkulasi & normalisasi otomatis skala 100', 8);
+

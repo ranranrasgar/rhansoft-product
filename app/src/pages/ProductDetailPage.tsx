@@ -65,11 +65,10 @@ function StarRating({ rating, reviews }: { rating: number; reviews: number }) {
         {Array.from({ length: 5 }).map((_, i) => (
           <Star
             key={i}
-            className={`size-4 ${
-              i < Math.round(rating)
+            className={`size-4 ${i < Math.round(rating)
                 ? "fill-amber-400 text-amber-400"
                 : "fill-muted text-muted-foreground/40"
-            }`}
+              }`}
           />
         ))}
       </div>
@@ -542,23 +541,7 @@ export function ProductDetailPage() {
         </div>
       </section>
 
-      {/* Galeri */}
-      {images.length > 1 && (
-        <section className="mx-auto max-w-7xl px-4 py-14 md:px-6 md:py-20">
-          <div className="mb-10 text-center">
-            <p className="text-[13px] font-semibold uppercase tracking-widest" style={{ color: product.color }}>Galeri Produk</p>
-            <h2 className="mt-3 text-2xl font-bold tracking-tight md:text-4xl">Lihat tampilan antarmuka</h2>
-          </div>
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {images.map((_img, i) => (
-              <div key={i} className="group relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-none bg-muted/20 p-2">
-                <img src={_img} alt={`${product.name} screenshot ${i + 1}`} className="max-h-full max-w-full object-contain" loading="lazy" />
-                <p className="absolute bottom-2 left-2 rounded-none bg-black/75 px-2 py-0.5 text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">Tampilan {i + 1}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+
 
       {/* Spesifikasi */}
       <section className="border-t border-border bg-muted/30 py-14 md:py-20">
