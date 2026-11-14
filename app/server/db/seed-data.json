@@ -1240,23 +1240,289 @@
         "Beli sekali untuk selamanya tanpa biaya langganan bulanan / tahunan per siswa, bebas dipasang di VPS maupun server lokal sekolah."
       ],
       "gallery": [
-        "/img/siakad/01-dashboard-administrator.jpg",
-        "/img/siakad/02-absensi-face-recognition.jpg",
-        "/img/siakad/03-absensi-kbm-mapel.jpg",
-        "/img/siakad/04-absensi-kalender-bulanan.jpg",
-        "/img/siakad/05-rekap-kehadiran-persentase.jpg",
-        "/img/siakad/06-gamifikasi-hall-of-fame.jpg",
-        "/img/siakad/07-jadwal-pelajaran-kolom.jpg",
-        "/img/siakad/08-guru-pengganti-inval.png",
-        "/img/siakad/09-rekap-nilai-harian-erapor.jpg",
-        "/img/siakad/10-kesiswaan-database-siswa.jpg",
-        "/img/siakad/11-ujian-cbt-bank-soal.jpg",
-        "/img/siakad/12-cbt-editor-live-preview.png",
-        "/img/siakad/mobile-01-beranda-pwa.jpg",
-        "/img/siakad/mobile-02-jadwal-libur.png",
-        "/img/siakad/mobile-03-daftar-sesi-mengajar.png",
-        "/img/siakad/mobile-04-presensi-capaian-guru.png",
-        "/img/siakad/mobile-05-absensi-siswa-mobile.png"
+        {
+          "url": "/img/siakad/01-dashboard-administrator.jpg",
+          "group": "Desktop / Web Admin",
+          "title": "Dashboard Eksekutif & Real-time Monitoring",
+          "caption": "Pusat kendali utama bagi Administrator, Kepala Sekolah, dan Yayasan untuk memantau aktivitas operasional sekolah secara real-time dari satu layar terintegrasi.",
+          "features": [
+            "Monitoring statistik harian: Total 447 Siswa Aktif, 32 Guru, dan Sesi KBM Berjalan.",
+            "Grafik tren 7 hari pergerakan kehadiran siswa, guru, dan ketercapaian KBM.",
+            "Snapshot indikator operasional cepat (Presensi Siswa %, Presensi Guru %, KBM Selesai %).",
+            "Akses cepat ke database siswa, staf, akademik, dan konfigurasi multi-tahun ajaran (Ganjil/Genap)."
+          ]
+        },
+        {
+          "url": "/img/siakad/02-absensi-face-recognition.jpg",
+          "group": "Desktop / Web Admin",
+          "title": "Smart Absensi AI - Face Recognition Scanner",
+          "caption": "Sistem presensi digital touchless berbasis kecerdasan buatan (Face Recognition). Mendeteksi wajah siswa dan pegawai secara otomatis dalam hitungan detik.",
+          "features": [
+            "Biometric Scanner AI otomatis mengenali wajah tanpa kartu ataupun sentuhan fisik.",
+            "Live Logs kedatangan real-time mencatat jam hadir presisi detik demi detik.",
+            "Filter presensi cepat antara Siswa dan Pegawai/Guru dengan kontrol audio bersuara.",
+            "Mendukung Kiosk Mode layar penuh untuk ditempatkan di tablet atau monitor lobi gerbang sekolah."
+          ]
+        },
+        {
+          "url": "/img/siakad/03-absensi-kbm-mapel.jpg",
+          "group": "Desktop / Web Admin",
+          "title": "Absensi KBM Terpadu per Mata Pelajaran",
+          "caption": "Pencatatan presensi kehadiran siswa per jam tatap muka pelajaran (KBM) langsung oleh guru pengampu mapel bersangkutan.",
+          "features": [
+            "Matrix presensi harian per tanggal 1-31 dalam satu bulan kalender akademik.",
+            "Status kehadiran berkode warna: Hadir (H - Hijau), Terlambat (T - Kuning), Sakit/Izin (S/I - Biru), Alpa (A - Merah).",
+            "Filter dinamis berdasarkan Tahun Ajaran, Semester, Nama Guru Pengampu, Mapel, Bulan, dan Rombel.",
+            "Tombol shortcut terhubung ke Face Scanner dan pengiriman Notifikasi kehadiran ke wali murid."
+          ]
+        },
+        {
+          "url": "/img/siakad/04-absensi-kalender-bulanan.jpg",
+          "group": "Desktop / Web Admin",
+          "title": "Kalender Presensi Bulanan Seluruh Siswa",
+          "caption": "Matriks kehadiran bulanan terpadu untuk memantau rekam jejak kedisiplinan dan absensi siswa dalam satu kelas penuh secara holistik.",
+          "features": [
+            "Tampilan tabel matriks kalender presensi harian seluruh rombel kelas.",
+            "Ringkasan otomatis di kolom kanan (Total Hadir, Terlambat, Sakit, Izin, Alpa, Cuti, dan Libur).",
+            "Pencarian cepat nama siswa atau NIS dan filter kelas instan.",
+            "Mempermudah guru Bimbingan Konseling (BK) dan Wali Kelas mengidentifikasi siswa yang membutuhkan pembinaan."
+          ]
+        },
+        {
+          "url": "/img/siakad/05-rekap-kehadiran-persentase.jpg",
+          "group": "Desktop / Web Admin",
+          "title": "Rekap Kehadiran Siswa & Progress Akumulasi JP",
+          "caption": "Visualisasi persentase kehadiran siswa dan akumulasi Jam Pelajaran (JP) KBM yang telah diikuti untuk evaluasi kelayakan ujian dan rapor.",
+          "features": [
+            "Visual progress bar hari masuk efektif (misal 19 dari 22 hari, rincian tepat waktu vs alpa).",
+            "Pelacakan total Jam Pelajaran (JP) KBM yang diikuti (contoh: 209 dari 240 JP atau 87%).",
+            "Indikator warna batas minimal kehadiran (merah jika berada di bawah ambang batas minimal sekolah).",
+            "Data rekap siap dicetak untuk bahan rapat evaluasi wali murid dan penilaian rapor digital."
+          ]
+        },
+        {
+          "url": "/img/siakad/06-gamifikasi-hall-of-fame.jpg",
+          "group": "Desktop / Web Admin",
+          "title": "Gamifikasi Siswa - 'Hall of Fame' Leaderboard",
+          "caption": "Sistem peringkat performa siswa terintegrasi untuk menciptakan iklim belajar yang kompetitif, positif, dan memacu semangat siswa berprestasi.",
+          "features": [
+            "Panggung juara Hall of Fame menampilkan Rank 1, 2, 3 dengan piala kehormatan dan persentase skor performa.",
+            "Penilaian multi-segi: Kehadiran KBM, Kedisiplinan Harian, Pembiasaan Ibadah (Shalat Dhuha/Ekstra), dan Perilaku.",
+            "Leaderboard dinamis dapat difilter per rombel, per jenjang (SMP/SMK), maupun per periode waktu.",
+            "Menumbuhkan rasa percaya diri siswa dan transparansi penilaian prestasi."
+          ]
+        },
+        {
+          "url": "/img/siakad/07-jadwal-pelajaran-kolom.jpg",
+          "group": "Desktop / Web Admin",
+          "title": "Manajemen Jadwal Pelajaran (Tampilan Kolom Jam)",
+          "caption": "Pengaturan dan penyusunan jadwal mengajar guru dari hari Senin sampai Jumat dalam format kolom jam terstruktur yang anti-bentrok.",
+          "features": [
+            "Monitoring beban kurikulum: 501 Sesi Terjadwal, 15 Rombel Kelas, dan 25 Guru Pengajar.",
+            "Format matriks kolom jam (06:30 - 07:00, 07:00 - 08:00, dst) memudahkan pembacaan jadwal harian.",
+            "Mendukung slot pembiasaan karakter sekolah: Shalat Dhuha, Upacara Bendera, dan Kegiatan Literasi.",
+            "Sistem anti-bentrok memastikan tidak ada guru atau ruang kelas yang terjadwal ganda pada jam yang sama."
+          ]
+        },
+        {
+          "url": "/img/siakad/08-guru-pengganti-inval.png",
+          "group": "Desktop / Web Admin",
+          "title": "Kelola Permintaan Guru Pengganti (Inval)",
+          "caption": "Solusi otomatisasi izin mengajar dan penugasan guru pengganti (inval) saat guru utama berhalangan hadir atau sedang tugas dinas luar.",
+          "features": [
+            "Pencatatan jelas: Guru Utama, Guru Pengganti yang ditunjuk, Mapel, Kelas, dan Jam Pelajaran.",
+            "Workflow persetujuan (approval) transparan oleh bagian Kurikulum atau Kepala Sekolah.",
+            "Status pelacakan real-time (Disetujui, Ditolak, Telah Diproses).",
+            "Menjamin kelas tidak mengalami jam kosong (zero free-hour) demi kualitas belajar mengajar."
+          ]
+        },
+        {
+          "url": "/img/siakad/09-rekap-nilai-harian-erapor.jpg",
+          "group": "Desktop / Web Admin",
+          "title": "Rekap Nilai Harian & Buku Nilai Digital Terpadu",
+          "caption": "Buku nilai digital komprehensif untuk mengelola nilai harian, tugas, asesmen, dan ujian siswa seluruh mata pelajaran.",
+          "features": [
+            "Matriks nilai lengkap semua mapel: PAI, BTQ Al-Quran, Bhs Indonesia, Sunda, Inggris, IPA, IPS, Matematika, Informatika.",
+            "Formula otomatis: normalisasi nilai asesmen & CBT ke skala 100 serta perhitungan rerata total per siswa.",
+            "Filter fleksibel per rombel kelas (IX A Ganjil, dll), jenis asesmen, dan semester aktif.",
+            "Fasilitas Input Nilai Baru, Cek Data per Tahun, serta export instan ke format Excel."
+          ]
+        },
+        {
+          "url": "/img/siakad/10-kesiswaan-database-siswa.jpg",
+          "group": "Desktop / Web Admin",
+          "title": "Kesiswaan & Database Induk Siswa (Master Siswa)",
+          "caption": "Pusat database kesiswaan lengkap mulai dari profil siswa, biodata, NIS/NISN, data wali kelas, hingga status keaktifan siswa.",
+          "features": [
+            "Profil siswa lengkap dengan foto, ID/NIS, kelas, rombel, dan wali kelas pendamping.",
+            "Fitur 'Cetak Info Login (PDF)' massal untuk dibagikan ke siswa dan wali murid untuk akses portal.",
+            "Export Excel dan Import Siswa baru via template Excel untuk mempermudah tahun ajaran baru & PPDB.",
+            "Monitoring Siswa Online dan pencatatan aktivitas login siswa secara real-time."
+          ]
+        },
+        {
+          "url": "/img/siakad/11-ujian-cbt-bank-soal.jpg",
+          "group": "Desktop / Web Admin",
+          "title": "Ujian & CBT / Bank Soal Komprehensif",
+          "caption": "Platform Computer Based Test (CBT) mandiri untuk menyelenggarakan PTS, PAS, PSAT, Asesmen Madrasah, dan Ujian Sekolah secara paperless.",
+          "features": [
+            "Manajemen paket soal terstruktur per jenjang SMP dan SMK beserta konfigurasi KKM.",
+            "Fleksibilitas tipe soal: Pilihan Ganda (PG), Pilihan Ganda Kompleks (Multi), Menjodohkan (Matching), dan Essay.",
+            "Modul terintegrasi: Bank Soal, Sesi Ujian (Jadwal & Token Acak), Live Monitoring Ujian, dan Analisis Hasil Nilai.",
+            "Fasilitas Template Excel untuk impor puluhan bank soal sekaligus secara praktis."
+          ]
+        },
+        {
+          "url": "/img/siakad/12-cbt-editor-live-preview.png",
+          "group": "Desktop / Web Admin",
+          "title": "Editor Soal CBT Interaktif & Live Smartphone Preview",
+          "caption": "Editor penyusunan butir soal ujian mutakhir dengan simulator langsung tampilan di layar smartphone siswa.",
+          "features": [
+            "Dukungan Rich HTML Editor & rumus matematika/sains dengan formula MathJax / LaTeX.",
+            "Live Smartphone Preview di sisi kanan editor: guru melihat langsung persis bagaimana soal muncul di HP siswa.",
+            "Navigasi nomor butir soal (1-40) dengan status kunci jawaban dan bobot poin otomatis.",
+            "Opsi pilihan jawaban A, B, C, D, E dengan kemudahan penentuan kunci jawaban satu klik."
+          ]
+        },
+        {
+          "url": "/img/siakad/mobile-01-beranda-pwa.jpg",
+          "group": "Mobile Guru",
+          "title": "Portal Guru Mobile & PWA Install to Home Screen",
+          "caption": "Tampilan beranda portal guru di smartphone yang dirancang sebagai Progressive Web App (PWA) yang dapat dipasang langsung ke layar HP.",
+          "features": [
+            "Akses instan dari smartphone iOS & Android tanpa perlu mengunduh aplikasi berat dari Play Store.",
+            "Menampilkan profil guru, status mengajar, jam mulai absen pagi (06:45), dan ranking performa guru.",
+            "Notifikasi instan dan akses cepat menu Beranda, Jadwal, Presensi, dan Siswa."
+          ]
+        },
+        {
+          "url": "/img/siakad/mobile-02-jadwal-libur.png",
+          "group": "Mobile Guru",
+          "title": "Monitoring Jadwal Mengajar & Status Hari Libur",
+          "caption": "Guru dapat memeriksa jadwal mengajar harian kapan saja dari HP, lengkap dengan pengingat otomatis hari libur.",
+          "features": [
+            "Pemberitahuan status hari libur otomatis (Libur Rutin Sabtu, presensi dinonaktifkan sementara).",
+            "Pilihan hari mengajar (Senin s/d Kamis) dengan total sesi mengajar harian.",
+            "Informasi waktu istirahat yang jelas dan terstruktur."
+          ]
+        },
+        {
+          "url": "/img/siakad/mobile-03-daftar-sesi-mengajar.png",
+          "group": "Mobile Guru",
+          "title": "Daftar Sesi Mata Pelajaran per Rombel di HP",
+          "caption": "Daftar lengkap sesi mengajar guru per hari dengan informasi jam pelajaran dan rombel kelas yang dituju.",
+          "features": [
+            "Rincian jadwal mapel per jam (contoh: Perangkat Lunak Desain XII DKV 08:00-10:00, 10:30-12:15, 13:00-14:00).",
+            "Status sesi aktif vs sesi yang telah lewat secara real-time.",
+            "Mencegah guru salah masuk kelas atau terlambat memulai sesi pembelajaran."
+          ]
+        },
+        {
+          "url": "/img/siakad/mobile-04-presensi-capaian-guru.png",
+          "group": "Mobile Guru",
+          "title": "Presensi Pegawai & Monitoring Capaian Mengajar",
+          "caption": "Portal mandiri guru untuk memantau kehadiran pribadi dan ketercapaian jam mengajar (JP) bulanan.",
+          "features": [
+            "Live clock waktu presensi (contoh: 10:49) dengan rekap Hadir, Izin, Sakit, dan Alpa bulan ini.",
+            "Pelacakan capaian: Jumlah Sesi Mengajar (5/20), Jam Pelajaran (10.4/56 JP), dan Beban Kerja (5.2/28 Jam).",
+            "Transparansi beban kerja guru untuk keperluan sertifikasi dan laporan bulanan dinas/sekolah."
+          ]
+        },
+        {
+          "url": "/img/siakad/mobile-05-absensi-siswa-mobile.png",
+          "group": "Mobile Guru",
+          "title": "Absensi Siswa Cepat di Dalam Kelas via Smartphone",
+          "caption": "Guru dapat mengabsen kehadiran siswa di dalam ruang kelas langsung menggunakan smartphone tanpa perlu membawa laptop.",
+          "features": [
+            "Daftar nama siswa lengkap dengan foto profil, NIS, dan nomor urut presensi.",
+            "Indikator status kehadiran instan ('Belum Scan', 'Hadir', 'Izin', 'Sakit').",
+            "Pencarian cepat siswa dan tombol filter rombel kelas yang sangat responsif."
+          ]
+        },
+        {
+          "url": "/img/siakad/mobile-siswa-01-beranda.jpg",
+          "group": "Mobile Siswa",
+          "title": "Beranda Siswa & Leaderboard Bintang",
+          "caption": "Dashboard siswa modern bernuansa ungu dengan ringkasan status kelas (X DPIB), jadwal hari ini, peringkat performa bintang mingguan, dan status tagihan sekolah.",
+          "features": [
+            "Kartu identitas siswa, kelas aktif, NIS, dan status jadwal sekolah hari ini.",
+            "Leaderboard Bintang menampilkan ranking dan persentase power prestasi kelas.",
+            "Indikator cepat: Performa Mingguan (%), Rasio Kehadiran Hari Ini, dan Status Tagihan 1 klik.",
+            "Akses cepat ke 4 menu utama: Jadwal, Nilai & Tugas, Absensi, dan Pembayaran Tagihan."
+          ]
+        },
+        {
+          "url": "/img/siakad/mobile-siswa-02-jadwal-timeline.jpg",
+          "group": "Mobile Siswa",
+          "title": "Timeline Jadwal Pelajaran Siswa di HP",
+          "caption": "Visualisasi jadwal pelajaran siswa berbentuk timeline vertikal rapi dari pagi hingga siang, lengkap dengan jam, nama guru pengajar, dan indikator status sesi selesai.",
+          "features": [
+            "Jadwal kronologis harian: Upacara (07:00-08:00), Bahasa Indonesia, Istirahat, Sejarah, Pramuka, hingga Mapel Kejuruan.",
+            "Menampilkan nama lengkap dan gelar guru pengajar pada tiap mata pelajaran.",
+            "Tab hari aktif (Sen, Sel, Rab, Kam, Jum, Sab) dengan status sesi mengajar real-time.",
+            "Mencegah siswa salah membawa buku atau tertinggal jam pembelajaran."
+          ]
+        },
+        {
+          "url": "/img/siakad/mobile-siswa-03-presensi-mandiri.png",
+          "group": "Mobile Siswa",
+          "title": "Presensi Mandiri & Layanan Izin/Sakit Siswa",
+          "caption": "Fitur presensi digital mandiri saat siswa tiba di sekolah serta layanan mandiri pengajuan surat izin dan sakit tanpa perlu antre di ruang piket.",
+          "features": [
+            "Status 'Siap Presensi' terintegrasi dengan tombol sidik jari digital.",
+            "Layanan mandiri pengajuan Sakit, Izin, dan tombol Riwayat Kehadiran.",
+            "Rekap presensi 30 hari terakhir (Total Hadir, Izin, Sakit, Alpa) yang transparan.",
+            "Pemberitahuan otomatis saat hari libur sekolah resmi tiba."
+          ]
+        },
+        {
+          "url": "/img/siakad/mobile-siswa-04-tugas-nilai.jpg",
+          "group": "Mobile Siswa",
+          "title": "Monitoring Tugas, Nilai Akademik & 'Tanya Nilai'",
+          "caption": "Transparansi nilai tugas, kuis, dan ujian bagi siswa dan orang tua, lengkap dengan kalkulasi rata-rata nilai dan tombol interaktif 'Tanya Nilai' ke guru.",
+          "features": [
+            "Rata-rata nilai total (contoh: 75 dari 100 dengan predikat 'Baik').",
+            "Statistik jumlah mapel dinilai, total penilaian masuk, nilai tertinggi, dan nilai terendah.",
+            "Rincian per mata pelajaran dengan progress bar penyelesaian tugas.",
+            "Fitur unik tombol 'Tanya Nilai' untuk konsultasi perbaikan nilai langsung ke guru pengampu."
+          ]
+        },
+        {
+          "url": "/img/siakad/mobile-siswa-05-profil-gamifikasi.jpg",
+          "group": "Mobile Siswa",
+          "title": "Profil Siswa, Gamifikasi Level & Notif WA",
+          "caption": "Halaman profil siswa dilengkapi sistem gamifikasi Level, Badge Prestasi (Performa Tinggi, 10 Besar, MVP), serta sinkronisasi kontak WhatsApp orang tua.",
+          "features": [
+            "Profil siswa dengan avatar/foto seragam, NIS, dan penanda Level Belajar (Lv 0+).",
+            "Koleksi badge prestasi siswa: 'Siswa Aktif', 'Performa Tinggi', '10 Besar', dan 'MVP'.",
+            "Penyimpanan nomor WhatsApp Siswa & WhatsApp Orang Tua/Wali terverifikasi.",
+            "Otomatisasi pengiriman pengumuman sekolah dan notifikasi kehadiran ke WA wali murid."
+          ]
+        },
+        {
+          "url": "/img/siakad/mobile-siswa-06-layanan-keuangan-kantin.png",
+          "group": "Mobile Siswa",
+          "title": "Layanan Sekolah Terpadu, Tabungan & Kantin Digital",
+          "caption": "Ekosistem layanan serbaguna bagi siswa yang mencakup modul belajar, e-learning materi, ujian CBT, hingga layanan keuangan digital dan kantin cashless.",
+          "features": [
+            "Modul Belajar: Akses materi pelajaran digital dan pelaksanaan ujian CBT online.",
+            "Modul Keuangan: Buku Tabungan Siswa, Dompet Digital (E-Wallet), dan Riwayat Pembayaran SPP.",
+            "Modul Kantin Digital: Pembayaran jajan di kantin sekolah secara cashless (tanpa uang tunai).",
+            "Modul Komunitas: Terhubung langsung ke TemanViora (Sosmed Sekolah) dan Absen Teman."
+          ]
+        },
+        {
+          "url": "/img/siakad/sosmed-temanviora-feed-reels.jpg",
+          "group": "Sosmed Sekolah",
+          "title": "TemanViora - Sosial Media Internal & Komunitas Sekolah",
+          "caption": "Jejaring sosial internal khusus warga sekolah. Siswa dapat mengunggah momen kegiatan, foto profil kreasi, dan video pendek (Reels) secara aman dan terpantau.",
+          "features": [
+            "Feed Linimasa foto kegiatan & kreasi siswa dengan stiker dan filter seru.",
+            "Fitur Reels untuk menampilkan bakat ekstrakurikuler & karya sains/video pendek.",
+            "Interaksi positif: Tombol Like (Love), Komentar, dan Direct Message chat antar teman.",
+            "Jejaring privat tertutup (Closed Network) yang aman dari orang luar dan bebas cyberbullying."
+          ]
+        }
       ],
       "featured": true
     },

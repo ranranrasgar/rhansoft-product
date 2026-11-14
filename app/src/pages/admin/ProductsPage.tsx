@@ -22,6 +22,9 @@ import {
   Loader2,
   Layers,
   Copy,
+  ChevronUp,
+  ChevronDown,
+  Sparkles,
 } from "lucide-react"
 import { toast } from "sonner"
 import { useProducts } from "@/hooks/useProducts"
@@ -42,6 +45,8 @@ import {
   type Product,
   type ProductSpec,
   type DownloadLink,
+  type ProductGalleryItem,
+  normalizeGalleryItem,
 } from "@/data/store"
 
 function formatPrice(n: number) {
@@ -86,7 +91,85 @@ function ProductForm({
   const [specsText, setSpecsText] = useState(
     (initial?.specs ?? []).map((s) => `${s.label}: ${s.value}`).join("\n")
   )
-  const [gallery, setGallery] = useState<string[]>(initial?.gallery ?? [])
+  const [gallery, setGallery] = useState<ProductGalleryItem[]>(() =>
+    (initial?.gallery ?? []).map(normalizeGalleryItem)
+  )
+  const [galleryFilter, setGalleryFilter] = useState<string>("all")
+  const [expandedGalleryIdx, setExpandedGalleryIdx] = useState<number | null>(null)
+
+  // Form tambah screenshot
+  const [showAddScreenshot, setShowAddScreenshot] = useState(false)
+  const [newGroup, setNewGroup] = useState("Desktop / Web Admin")
+  const [newTitle, setNewTitle] = useState("")
+  const [newCaption, setNewCaption] = useState("")
+  const [newFeatures, setNewFeatures] = useState("")
+  const [newUrl, setNewUrl] = useState("")
+
+  const PRESET_GROUPS = [
+    "Desktop / Web Admin",
+    "Mobile Guru",
+    "Mobile Siswa",
+    "Sosmed Sekolah",
+    "Galeri Umum",
+  ]
+
+  const galleryGroups = useMemo(() => {
+    const list: string[] = []
+    gallery.forEach((g) => {
+      const name = g.group?.trim() || "Galeri Umum"
+      if (!list.includes(name)) list.push(name)
+    })
+    return list
+  }, [gallery])
+
+  const moveGalleryItem = (index: number, direction: -1 | 1) => {
+    const target = index + direction
+    if (target < 0 || target >= gallery.length) return
+    const next = [...gallery]
+    const temp = next[index]
+    next[index] = next[target]
+    next[target] = temp
+    setGallery(next)
+  }
+
+  const removeGalleryItem = (index: number) => {
+    setGallery((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const updateGalleryItem = (index: number, patch: Partial<ProductGalleryItem>) => {
+    setGallery((prev) => {
+      const next = [...prev]
+      next[index] = { ...next[index], ...patch }
+      return next
+    })
+  }
+
+  const handleAddScreenshot = () => {
+    if (!newUrl.trim()) {
+      toast.error("Pilih atau upload gambar screenshot terlebih dahulu")
+      return
+    }
+    const featuresArr = newFeatures
+      .split("\n")
+      .map((f) => f.trim())
+      .filter(Boolean)
+
+    const item: ProductGalleryItem = {
+      url: newUrl.trim(),
+      group: newGroup.trim() || "Galeri Umum",
+      title: newTitle.trim(),
+      caption: newCaption.trim(),
+      features: featuresArr,
+    }
+
+    setGallery((prev) => [...prev, item])
+    setNewUrl("")
+    setNewTitle("")
+    setNewCaption("")
+    setNewFeatures("")
+    setShowAddScreenshot(false)
+    toast.success("Screenshot berhasil ditambahkan")
+  }
   const [downloadLinks, setDownloadLinks] = useState<DownloadLink[]>(
     initial?.downloadLinks ?? []
   )
@@ -144,7 +227,9 @@ function ProductForm({
       reviews: asNew ? 0 : (initial?.reviews ?? 0),
       highlights: highlights.split("\n").filter((h) => h.trim()),
       specs,
-      gallery: gallery.filter((g) => g.trim()),
+      gallery: gallery
+        .map(normalizeGalleryItem)
+        .filter((g) => Boolean(g.url && g.url.trim())),
       downloadLinks: downloadLinks.filter((dl) => dl.url.trim()),
       installTutorial: installTutorial.trim() || undefined,
       platformIds,
@@ -331,26 +416,357 @@ function ProductForm({
           />
         </div>
 
-        <div className="flex flex-col gap-2">
-          <Label>Gallery Images</Label>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {gallery.map((img, idx) => (
-              <div key={idx} className="relative aspect-video flex items-center justify-center overflow-hidden rounded-none bg-muted/20 p-1">
-                <img src={img} alt={`Gallery ${idx + 1}`} className="max-h-full max-w-full object-contain" />
-                <button
-                  type="button"
-                  onClick={() => setGallery((prev) => prev.filter((_, i) => i !== idx))}
-                  className="absolute right-1.5 top-1.5 rounded-lg bg-destructive p-1 text-destructive-foreground shadow-md transition-transform hover:scale-110"
-                  aria-label="Hapus gambar"
-                >
-                  <Trash2 className="size-3.5" />
-                </button>
+        <div className="flex flex-col gap-3 rounded-none border border-border bg-card p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <Layers className="size-4 text-primary" />
+                <Label className="text-base font-bold">Screenshot & Showcase Produk (Grouped Layouts)</Label>
               </div>
-            ))}
-            {gallery.length < 8 && (
-              <ImageUpload value="" onChange={(url) => setGallery((prev) => [...prev, url])} aspectRatio="wide" />
-            )}
+              <p className="mt-1 text-xs text-muted-foreground">
+                Kelompokkan screenshot berdasarkan modul atau platform (cth: <strong>Desktop / Web Admin</strong>, <strong>Mobile Guru</strong>, <strong>Mobile Siswa</strong>, <strong>Sosmed Sekolah</strong>).
+                Sistem akan otomatis menampilkan layout yang sesuai (grid modul desktop, mockup smartphone interaktif, atau spotlight medsos) di halaman produk!
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant={showAddScreenshot ? "secondary" : "default"}
+              size="sm"
+              className="rounded-none gap-1.5"
+              onClick={() => setShowAddScreenshot((v) => !v)}
+            >
+              <Plus className="size-4" />
+              {showAddScreenshot ? "Tutup Form Tambah" : "Tambah Screenshot"}
+            </Button>
           </div>
+
+          {/* Form Tambah Screenshot Baru */}
+          {showAddScreenshot && (
+            <div className="space-y-4 border border-dashed border-primary/50 bg-primary/5 p-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <Sparkles className="size-4 text-primary" />
+                  Tambah Screenshot Baru ke Galeri
+                </h4>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setShowAddScreenshot(false)}
+                >
+                  Batal
+                </Button>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold">Upload Gambar atau Input URL *</Label>
+                  <Input
+                    value={newUrl}
+                    onChange={(e) => setNewUrl(e.target.value)}
+                    placeholder="/img/siakad/contoh.jpg atau https://..."
+                    className="text-xs font-mono"
+                  />
+                  <div className="mt-2">
+                    <ImageUpload
+                      value={newUrl}
+                      onChange={(url) => setNewUrl(url)}
+                      label="Upload File Screenshot"
+                      aspectRatio="wide"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs font-semibold">Kelompok / Modul (Layout Group) *</Label>
+                    <Input
+                      value={newGroup}
+                      onChange={(e) => setNewGroup(e.target.value)}
+                      placeholder="Desktop / Web Admin, Mobile Guru, dll."
+                      className="mt-1 text-xs"
+                    />
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      <span className="text-[10px] text-muted-foreground mr-1 self-center">Pilihan cepat:</span>
+                      {PRESET_GROUPS.map((preset) => (
+                        <button
+                          key={preset}
+                          type="button"
+                          onClick={() => setNewGroup(preset)}
+                          className={`px-2 py-0.5 text-[10px] border transition-colors cursor-pointer ${
+                            newGroup === preset
+                              ? "border-primary bg-primary text-primary-foreground font-semibold"
+                              : "border-border bg-background hover:bg-accent text-foreground"
+                          }`}
+                        >
+                          {preset}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-semibold">Judul Layar / Fitur (Opsional)</Label>
+                    <Input
+                      value={newTitle}
+                      onChange={(e) => setNewTitle(e.target.value)}
+                      placeholder="Cth: Dashboard Administrator & Monitoring KBM"
+                      className="mt-1 text-xs"
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-semibold">Deskripsi Layar (Opsional)</Label>
+                    <textarea
+                      value={newCaption}
+                      onChange={(e) => setNewCaption(e.target.value)}
+                      rows={2}
+                      placeholder="Penjelasan ringkas tentang modul dan fungsi pada screenshot ini..."
+                      className={`${textareaClass} text-xs`}
+                    />
+                  </div>
+
+                  <div>
+                    <Label className="text-xs font-semibold">Poin Fitur Unggulan (1 per baris, opsional)</Label>
+                    <textarea
+                      value={newFeatures}
+                      onChange={(e) => setNewFeatures(e.target.value)}
+                      rows={2}
+                      placeholder={"Monitoring grafik kehadiran real-time\nAkses cepat data siswa & guru"}
+                      className={`${textareaClass} text-xs font-mono`}
+                    />
+                  </div>
+
+                  <Button
+                    type="button"
+                    onClick={handleAddScreenshot}
+                    className="w-full rounded-none"
+                    size="sm"
+                  >
+                    <Plus className="size-4 mr-1.5" />
+                    Simpan Screenshot ke Galeri
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Filter Tab per Group */}
+          {gallery.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5 border-b border-border pb-2 text-xs">
+              <span className="font-semibold text-muted-foreground text-[11px] mr-1">Filter Kelompok:</span>
+              <button
+                type="button"
+                onClick={() => setGalleryFilter("all")}
+                className={`px-2.5 py-1 text-xs border cursor-pointer transition-colors ${
+                  galleryFilter === "all"
+                    ? "border-primary bg-primary text-primary-foreground font-semibold"
+                    : "border-border bg-muted/40 text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                Semua ({gallery.length})
+              </button>
+              {galleryGroups.map((g) => {
+                const count = gallery.filter((item) => (item.group?.trim() || "Galeri Umum") === g).length
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setGalleryFilter(g)}
+                    className={`px-2.5 py-1 text-xs border cursor-pointer transition-colors ${
+                      galleryFilter === g
+                        ? "border-primary bg-primary text-primary-foreground font-semibold"
+                        : "border-border bg-muted/40 text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {g} ({count})
+                  </button>
+                )
+              })}
+            </div>
+          )}
+
+          {/* List of Screenshot Items */}
+          {gallery.length === 0 ? (
+            <div className="py-8 text-center text-xs text-muted-foreground">
+              Belum ada screenshot yang ditambahkan. Klik tombol <strong>"Tambah Screenshot"</strong> di atas.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {gallery.map((item, idx) => {
+                const itemGroup = item.group?.trim() || "Galeri Umum"
+                if (galleryFilter !== "all" && itemGroup !== galleryFilter) return null
+                const isExpanded = expandedGalleryIdx === idx
+
+                return (
+                  <div
+                    key={idx}
+                    className="border border-border bg-card p-3 transition-colors hover:border-primary/40"
+                  >
+                    <div className="flex items-start gap-3">
+                      {/* Thumbnail */}
+                      <div className="relative h-16 w-24 shrink-0 overflow-hidden bg-black/90 border border-border">
+                        <img
+                          src={item.url}
+                          alt={item.title || `Screenshot ${idx + 1}`}
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            ;(e.target as HTMLImageElement).src = "/placeholder.svg"
+                          }}
+                        />
+                      </div>
+
+                      {/* Summary */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline" className="rounded-none text-[10px] font-semibold text-primary">
+                            {itemGroup}
+                          </Badge>
+                          <span className="text-xs font-bold text-foreground truncate">
+                            {item.title || `Layar Fitur #${idx + 1}`}
+                          </span>
+                        </div>
+                        {item.caption && (
+                          <p className="mt-1 text-xs text-muted-foreground line-clamp-1">{item.caption}</p>
+                        )}
+                        <p className="mt-1 text-[11px] text-muted-foreground truncate font-mono">
+                          {item.url} • {item.features?.length || 0} poin fitur
+                        </p>
+                      </div>
+
+                      {/* Controls */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          disabled={idx === 0}
+                          onClick={() => moveGalleryItem(idx, -1)}
+                          title="Pindah ke Atas"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        >
+                          <ChevronUp className="size-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          disabled={idx === gallery.length - 1}
+                          onClick={() => moveGalleryItem(idx, 1)}
+                          title="Pindah ke Bawah"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        >
+                          <ChevronDown className="size-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setExpandedGalleryIdx(isExpanded ? null : idx)}
+                          className="h-8 px-2 text-xs"
+                        >
+                          {isExpanded ? "Tutup" : "Edit Detail"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => removeGalleryItem(idx)}
+                          title="Hapus Screenshot"
+                          className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* Expanded Detail Editor */}
+                    {isExpanded && (
+                      <div className="mt-3 border-t border-border pt-3 space-y-3 bg-muted/20 p-3">
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <Label className="text-xs">Kelompok / Modul (Layout Group)</Label>
+                            <Input
+                              value={item.group || ""}
+                              onChange={(e) => updateGalleryItem(idx, { group: e.target.value })}
+                              placeholder="Desktop / Web Admin, Mobile Siswa, dll."
+                              className="mt-1 text-xs"
+                            />
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              {PRESET_GROUPS.map((preset) => (
+                                <button
+                                  key={preset}
+                                  type="button"
+                                  onClick={() => updateGalleryItem(idx, { group: preset })}
+                                  className={`px-1.5 py-0.5 text-[9px] border transition-colors cursor-pointer ${
+                                    item.group === preset
+                                      ? "border-primary bg-primary text-primary-foreground font-semibold"
+                                      : "border-border bg-background hover:bg-accent text-foreground"
+                                  }`}
+                                >
+                                  {preset}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div>
+                            <Label className="text-xs">URL Gambar</Label>
+                            <Input
+                              value={item.url}
+                              onChange={(e) => updateGalleryItem(idx, { url: e.target.value })}
+                              placeholder="/img/... atau https://..."
+                              className="mt-1 text-xs font-mono"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <Label className="text-xs">Judul Layar</Label>
+                          <Input
+                            value={item.title || ""}
+                            onChange={(e) => updateGalleryItem(idx, { title: e.target.value })}
+                            placeholder="Judul modul atau tampilan layar..."
+                            className="mt-1 text-xs"
+                          />
+                        </div>
+
+                        <div>
+                          <Label className="text-xs">Deskripsi Layar</Label>
+                          <textarea
+                            value={item.caption || ""}
+                            onChange={(e) => updateGalleryItem(idx, { caption: e.target.value })}
+                            rows={2}
+                            placeholder="Deskripsi fungsi dan tujuan layar ini..."
+                            className={`${textareaClass} text-xs`}
+                          />
+                        </div>
+
+                        <div>
+                          <Label className="text-xs">Poin Fitur Unggulan (1 per baris)</Label>
+                          <textarea
+                            value={(item.features || []).join("\n")}
+                            onChange={(e) =>
+                              updateGalleryItem(idx, {
+                                features: e.target.value
+                                  .split("\n")
+                                  .map((f) => f.trim())
+                                  .filter(Boolean),
+                              })
+                            }
+                            rows={3}
+                            placeholder={"Fitur 1\nFitur 2\nFitur 3"}
+                            className={`${textareaClass} text-xs font-mono`}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
 
         <div className={field}>

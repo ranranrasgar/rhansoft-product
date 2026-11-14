@@ -46,7 +46,7 @@ import { getRelatedProducts, type Product } from "@/data/store"
 import { useProducts } from "@/hooks/useProducts"
 import { useCart } from "@/hooks/useCart"
 import { useNavContext } from "@/lib/navigate"
-import { SiakadDetailShowcase } from "@/components/SiakadDetailShowcase"
+import { ProductGroupedShowcase } from "@/components/ProductGroupedShowcase"
 
 function formatPrice(n: number) {
   return n.toLocaleString("id-ID", {
@@ -185,7 +185,7 @@ export function ProductDetailPage() {
   const related = getRelatedProducts(product, products)
   const images = useMemo(() => {
     const list = product.gallery?.length ? product.gallery : [product.image]
-    return list.filter(Boolean)
+    return list.map((item) => (typeof item === "string" ? item : item.url)).filter(Boolean)
   }, [product])
 
   const benefits = product.benefits?.length ? product.benefits : defaultBenefits
@@ -413,8 +413,8 @@ export function ProductDetailPage() {
         </div>
       </section>
 
-      {/* Showcase Khusus SiAkad SMP/SMK & Mobile PWA */}
-      {product.id === "web-siakad" && <SiakadDetailShowcase />}
+      {/* Dynamic Grouped Feature & Mobile Showcase */}
+      <ProductGroupedShowcase product={product} />
 
       {/* Deskripsi lengkap */}
       <section className="mx-auto max-w-7xl px-4 py-14 md:px-6 md:py-20">
