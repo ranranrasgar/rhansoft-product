@@ -17,3 +17,4 @@ CREATE INDEX IF NOT EXISTS idx_page_views_created_at ON page_views(created_at);
 CREATE INDEX IF NOT EXISTS idx_page_views_product_id ON page_views(product_id);
 CREATE INDEX IF NOT EXISTS idx_page_views_action ON page_views(action);
 CREATE INDEX IF NOT EXISTS idx_page_views_visitor ON page_views(visitor_id);
+

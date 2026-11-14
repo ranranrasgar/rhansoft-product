@@ -1,8 +1,8 @@
 /**
  * Rhansoft Store — Analytics & Traffic Tracking Routes
  *
- * Mengelola pencatatan lalu lintas pengunjung (views, clicks, orders, browsing-only)
- * dan menyajikan agregasi metrik harian serta performa produk untuk Admin Dashboard.
+ * Mengelola pencatatan lalu lintas pengunjung riil dan menyajikan agregasi
+ * data 100% riil dari database PostgreSQL (orders, order_items, page_views, customers).
  */
 
 export function registerAnalyticsRoutes(app, { queryAll, queryOne, query, authMiddleware }) {
@@ -19,7 +19,6 @@ export function registerAnalyticsRoutes(app, { queryAll, queryOne, query, authMi
         metadata = null,
       } = req.body || {}
 
-      // Sanitasi input sederhana
       const safePath = String(path).substring(0, 255)
       const safeProductId = productId ? String(productId).substring(0, 50) : null
       const safeVisitorId = visitorId ? String(visitorId).substring(0, 64) : null
@@ -34,225 +33,219 @@ export function registerAnalyticsRoutes(app, { queryAll, queryOne, query, authMi
 
       res.json({ ok: true })
     } catch (err) {
-      // Non-blocking log agar tidak mengganggu request user
       console.warn("track error:", err.message)
       res.json({ ok: false })
     }
   })
 
-  // ── 2. Endpoint Agregasi Analitik untuk Dashboard Admin ──────────────
+  // ── 2. Endpoint Agregasi Analitik untuk Dashboard Admin (100% Data Riil) ──
   app.get("/api/admin/analytics", authMiddleware("admin"), async (req, res) => {
     try {
-      const daysCount = Math.min(Math.max(parseInt(req.query.days) || 7, 7), 30)
+      const daysCount = Math.min(Math.max(parseInt(req.query.days) || 30, 7), 90)
 
-      // 1. Ambil data pesanan riil dari database
-      const realOrders = await queryAll(
-        `SELECT o.id, o.order_id, o.total_amount, o.transaction_status, o.created_at,
-                oi.product_id, oi.product_name, oi.price, oi.quantity
-         FROM orders o
-         LEFT JOIN order_items oi ON oi.order_id = o.id
-         WHERE o.created_at >= NOW() - ($1 || ' days')::INTERVAL
-           AND o.payment_type != 'legacy'
-         ORDER BY o.created_at ASC`,
+      // 1. Ambil ringkasan seluruh pesanan riil dari PostgreSQL
+      const orderStats = await queryOne(
+        `SELECT 
+           count(*)::int as total_orders,
+           count(*) FILTER (WHERE transaction_status IN ('settlement', 'capture'))::int as paid_orders,
+           count(*) FILTER (WHERE transaction_status = 'pending')::int as pending_orders,
+           count(*) FILTER (WHERE transaction_status IN ('deny', 'cancel', 'expire', 'failure'))::int as failed_orders,
+           coalesce(sum(total_amount) FILTER (WHERE transaction_status IN ('settlement', 'capture')), 0)::bigint as paid_revenue,
+           coalesce(sum(total_amount), 0)::bigint as gross_revenue
+         FROM orders
+         WHERE payment_type != 'legacy'`
+      )
+
+      // 2. Ambil statistik pengunjung riil dari tabel page_views
+      const viewStats = await queryOne(
+        `SELECT 
+           count(*)::int as total_pageviews,
+           count(DISTINCT visitor_id)::int as total_visitors
+         FROM page_views`
+      )
+
+      // Hitung total pengguna/pelanggan unik riil
+      const customerStats = await queryOne(
+        `SELECT count(*)::int as total_customers FROM customers`
+      )
+      const userStats = await queryOne(
+        `SELECT count(*)::int as total_users FROM users`
+      )
+      const pendingLicenseStats = await queryOne(
+        `SELECT count(*)::int as pending_licenses FROM license_requests WHERE status = 'pending'`
+      )
+
+      const rawVisitors = parseInt(viewStats?.total_visitors || 0)
+      const rawPageviews = parseInt(viewStats?.total_pageviews || 0)
+      const totalCustomers = parseInt(customerStats?.total_customers || 0)
+      const totalUsers = parseInt(userStats?.total_users || 0)
+      const pendingLicenses = parseInt(pendingLicenseStats?.pending_licenses || 0)
+
+      // Total pengunjung unik riil
+      const totalVisitors = Math.max(rawVisitors, totalCustomers)
+      const totalPageviews = Math.max(rawPageviews, totalVisitors)
+
+      const totalOrders = parseInt(orderStats?.total_orders || 0)
+      const paidOrders = parseInt(orderStats?.paid_orders || 0)
+      const pendingOrders = parseInt(orderStats?.pending_orders || 0)
+      const failedOrders = parseInt(orderStats?.failed_orders || 0)
+      const totalRevenue = parseInt(orderStats?.paid_revenue || 0)
+
+      // Pengunjung yang cuma melihat-lihat
+      const browsersOnly = Math.max(0, totalVisitors - totalCustomers)
+      const browsersOnlyPercentage = totalVisitors > 0 ? parseFloat(((browsersOnly / totalVisitors) * 100).toFixed(1)) : 0
+      const conversionRate = totalVisitors > 0 ? parseFloat(((totalOrders / totalVisitors) * 100).toFixed(1)) : 0
+
+      // 3. Ambil data pesanan riil yang terdistribusi per tanggal
+      const dailyOrdersRaw = await queryAll(
+        `SELECT 
+           to_char(created_at, 'YYYY-MM-DD') as date_key,
+           count(*)::int as orders_count,
+           count(*) FILTER (WHERE transaction_status IN ('settlement', 'capture'))::int as paid_count,
+           coalesce(sum(total_amount) FILTER (WHERE transaction_status IN ('settlement', 'capture')), 0)::bigint as paid_revenue,
+           coalesce(sum(total_amount), 0)::bigint as gross_revenue
+         FROM orders
+         WHERE created_at >= NOW() - ($1 || ' days')::INTERVAL
+           AND payment_type != 'legacy'
+         GROUP BY date_key
+         ORDER BY date_key ASC`,
         [daysCount]
       )
 
-      // 2. Ambil data produk aktif dari database
-      const products = await queryAll(
-        `SELECT id, name, category_id, price, image, rating, reviews
-         FROM products
-         WHERE is_active = TRUE
-         ORDER BY sort_order ASC, name ASC`
+      // 4. Ambil data pageviews riil per tanggal
+      const dailyViewsRaw = await queryAll(
+        `SELECT 
+           to_char(created_at, 'YYYY-MM-DD') as date_key,
+           count(*)::int as pageviews,
+           count(DISTINCT visitor_id)::int as visitors
+         FROM page_views
+         WHERE created_at >= NOW() - ($1 || ' days')::INTERVAL
+         GROUP BY date_key
+         ORDER BY date_key ASC`,
+        [daysCount]
       )
 
-      // 3. Ambil data page views riil dari tabel page_views jika ada
-      let realViews = []
-      try {
-        realViews = await queryAll(
-          `SELECT action, product_id, visitor_id, created_at,
-                  DATE_TRUNC('day', created_at) as day_date
-           FROM page_views
-           WHERE created_at >= NOW() - ($1 || ' days')::INTERVAL
-           ORDER BY created_at ASC`,
-          [daysCount]
-        )
-      } catch (e) {
-        console.warn("page_views table query warning:", e.message)
-      }
+      const ordersMap = {}
+      dailyOrdersRaw.forEach((r) => {
+        ordersMap[r.date_key] = r
+      })
 
-      // Generate daftar tanggal N hari terakhir
-      const now = new Date()
-      const dates = []
-      for (let i = daysCount - 1; i >= 0; i--) {
-        const d = new Date(now)
-        d.setDate(d.getDate() - i)
-        dates.push(d)
-      }
+      const viewsMap = {}
+      dailyViewsRaw.forEach((r) => {
+        viewsMap[r.date_key] = r
+      })
 
-      // Format nama hari Indonesia
+      // Generate tanggal harian N hari terakhir
       const dayNames = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"]
       const monthNames = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
 
-      // Kelompokkan pesanan per tanggal
-      const ordersByDate = {}
-      realOrders.forEach((o) => {
-        if (!o.created_at) return
-        const key = new Date(o.created_at).toISOString().split("T")[0]
-        if (!ordersByDate[key]) ordersByDate[key] = []
-        ordersByDate[key].push(o)
-      })
+      const now = new Date()
+      const dailyTrends = []
+      for (let i = daysCount - 1; i >= 0; i--) {
+        const d = new Date(now)
+        d.setDate(d.getDate() - i)
+        const dateKey = d.toISOString().split("T")[0]
+        const formattedDate = `${d.getDate()} ${monthNames[d.getMonth()]}`
+        const dayName = dayNames[d.getDay()]
 
-      // Kelompokkan views per tanggal
-      const viewsByDate = {}
-      realViews.forEach((v) => {
-        if (!v.created_at) return
-        const key = new Date(v.created_at).toISOString().split("T")[0]
-        if (!viewsByDate[key]) viewsByDate[key] = []
-        viewsByDate[key].push(v)
-      })
+        const orderInfo = ordersMap[dateKey] || {}
+        const viewInfo = viewsMap[dateKey] || {}
 
-      // Siapkan tren harian
-      const dailyTrends = dates.map((dateObj, idx) => {
-        const dateKey = dateObj.toISOString().split("T")[0]
-        const formattedDate = `${dateObj.getDate()} ${monthNames[dateObj.getMonth()]}`
-        const dayName = dayNames[dateObj.getDay()]
+        const dayOrders = parseInt(orderInfo.orders_count || 0)
+        const dayPaidOrders = parseInt(orderInfo.paid_count || 0)
+        const dayRevenue = parseInt(orderInfo.paid_revenue || 0)
+        const dayGross = parseInt(orderInfo.gross_revenue || 0)
 
-        const dayOrders = ordersByDate[dateKey] || []
-        const dayViews = viewsByDate[dateKey] || []
+        const dayVisitors = parseInt(viewInfo.visitors || 0)
+        const dayPageviews = parseInt(viewInfo.pageviews || 0)
+        const dayBrowsers = Math.max(0, dayVisitors - dayOrders)
 
-        // Hitung transaksi riil
-        const paidOrders = dayOrders.filter((o) => o.transaction_status === "settlement" || o.transaction_status === "capture")
-        const dayRevenue = paidOrders.reduce((sum, o) => sum + parseInt(o.total_amount || 0), 0)
-
-        // Hitung traffic riil atau baseline dinamis berbasis data produk dan order
-        const baseVisitorMultiplier = 12 + ((dateObj.getDate() * 7 + idx * 11) % 9)
-        const orderCount = dayOrders.length
-        
-        // Pengunjung unik harian
-        const uniqueVisitorsReal = new Set(dayViews.map((v) => v.visitor_id).filter(Boolean)).size
-        const visitors = uniqueVisitorsReal > 0 ? Math.max(uniqueVisitorsReal, orderCount * 8) : 95 + baseVisitorMultiplier * 8 + orderCount * 12
-
-        // Total tayangan / pageviews
-        const pageviews = dayViews.length > 0 ? Math.max(dayViews.length, visitors * 3) : Math.round(visitors * 3.4)
-
-        // Pengunjung yang hanya melihat-lihat (tanpa checkout)
-        const browsers = Math.max(visitors - Math.max(orderCount, 1), Math.round(visitors * 0.88))
-
-        // Interaksi klik produk
-        const clicks = Math.round(visitors * 0.45)
-
-        return {
+        dailyTrends.push({
           dateKey,
           date: formattedDate,
           day: dayName,
-          visitors,
-          pageviews,
-          browsers,
-          orders: orderCount > 0 ? orderCount : Math.floor(visitors * 0.08) + (idx % 3),
-          paidOrders: paidOrders.length > 0 ? paidOrders.length : Math.max(0, Math.floor(visitors * 0.06)),
-          revenue: dayRevenue > 0 ? dayRevenue : (orderCount > 0 ? orderCount * 1800000 : (idx % 2 === 0 ? 2800000 : 990000)),
-          productClicks: clicks,
-        }
-      })
+          visitors: dayVisitors,
+          pageviews: dayPageviews,
+          browsers: dayBrowsers,
+          orders: dayOrders,
+          paidOrders: dayPaidOrders,
+          revenue: dayRevenue,
+          gross: dayGross,
+        })
+      }
 
-      // Hitung akumulasi ringkasan
-      const totalVisitors = dailyTrends.reduce((sum, d) => sum + d.visitors, 0)
-      const totalPageviews = dailyTrends.reduce((sum, d) => sum + d.pageviews, 0)
-      const totalBrowsers = dailyTrends.reduce((sum, d) => sum + d.browsers, 0)
-      const totalOrdersCount = dailyTrends.reduce((sum, d) => sum + d.orders, 0)
-      const totalPaidOrdersCount = dailyTrends.reduce((sum, d) => sum + d.paidOrders, 0)
-      const totalRevenue = dailyTrends.reduce((sum, d) => sum + d.revenue, 0)
+      // 5. Ranking Produk Terpopuler Riil dari database (order_items + products)
+      const topProductsRaw = await queryAll(
+        `SELECT 
+           p.id, 
+           p.name, 
+           p.category_id as category, 
+           p.price, 
+           p.image,
+           count(oi.id)::int as orders,
+           coalesce(sum(oi.price * oi.quantity), 0)::bigint as revenue,
+           count(DISTINCT pv.id)::int as views
+         FROM products p
+         LEFT JOIN order_items oi ON oi.product_id = p.id
+         LEFT JOIN page_views pv ON pv.product_id = p.id
+         WHERE p.is_active = TRUE
+         GROUP BY p.id, p.name, p.category_id, p.price, p.image
+         ORDER BY orders DESC, revenue DESC, p.sort_order ASC`
+      )
 
-      const conversionRate = totalVisitors > 0 ? parseFloat(((totalOrdersCount / totalVisitors) * 100).toFixed(1)) : 0
-      const browsersPercentage = totalVisitors > 0 ? parseFloat(((totalBrowsers / totalVisitors) * 100).toFixed(1)) : 0
-
-      // Hitung metrik produk terpopuler
-      const topProducts = products.map((p, idx) => {
-        // Cari order riil untuk produk ini
-        const prodOrders = realOrders.filter((o) => o.product_id === p.id || (o.items && o.items.some && o.items.some((it) => it.product_id === p.id)))
-        const ordersCount = prodOrders.length
-
-        // Hitung estimasi/riil views & clicks berbasis posisi katalog & reviews
-        const baseViews = 180 + (products.length - idx) * 35 + (p.reviews || 0) * 3
-        const views = baseViews + ordersCount * 14
-        const clicks = Math.round(views * 0.52)
-        const estOrders = Math.max(ordersCount, Math.floor(clicks * 0.12) + (p.id === "web-siakad" ? 38 : idx === 1 ? 25 : 10))
-        const revenue = estOrders * (p.price || 1500000)
-        const conversion = views > 0 ? parseFloat(((estOrders / views) * 100).toFixed(1)) : 0
-
+      const topProducts = topProductsRaw.map((p) => {
+        const views = Math.max(p.views, p.orders)
+        const clicks = p.views
+        const conversion = views > 0 ? parseFloat(((p.orders / views) * 100).toFixed(1)) : 0
         return {
           id: p.id,
           name: p.name,
-          category: p.category_id || "Software",
-          price: p.price,
+          category: p.category || "Software",
+          price: parseInt(p.price || 0),
           image: p.image,
           views,
           clicks,
-          orders: estOrders,
+          orders: p.orders,
+          revenue: parseInt(p.revenue || 0),
           conversion,
-          revenue,
-          badge: p.id === "web-siakad" ? "Terpopuler" : estOrders > 20 ? "Best Seller" : "Trending",
         }
       })
 
-      // Urutkan produk berdasarkan jumlah klik dan order tertinggi
-      topProducts.sort((a, b) => b.clicks + b.orders * 2 - (a.clicks + a.orders * 2))
-
-      // Funnel konversi pengunjung
-      const funnel = [
-        {
-          stage: "Pengunjung Masuk (Traffic)",
-          count: totalVisitors,
-          percentage: 100,
-          desc: "Seluruh pengguna unik yang membuka halaman website toko",
-          color: "#3b82f6",
-        },
-        {
-          stage: "Melihat Detail Software",
-          count: Math.round(totalVisitors * 0.76),
-          percentage: 76.0,
-          desc: "Pengunjung yang membuka halaman detail & membaca fitur produk",
-          color: "#06b6d4",
-        },
-        {
-          stage: "Cuma Melihat-lihat (Browsing)",
-          count: totalBrowsers,
-          percentage: browsersPercentage,
-          desc: "Pengunjung yang melihat katalog software tanpa melanjutkan checkout",
-          color: "#f59e0b",
-        },
-        {
-          stage: "Klik Beli / Mulai Order",
-          count: Math.round(totalVisitors * 0.16),
-          percentage: 16.0,
-          desc: "Calon pembeli yang menekan 'Beli Sekarang' atau 'Coba Gratis'",
-          color: "#8b5cf6",
-        },
-        {
-          stage: "Order Berhasil (Pembeli)",
-          count: totalOrdersCount,
-          percentage: conversionRate,
-          desc: "Pengguna yang berhasil menyelesaikan pemesanan software",
-          color: "#10b981",
-        },
-      ]
+      // 6. Transaksi Terbaru Riil
+      const recentOrders = await queryAll(
+        `SELECT o.id, o.order_id, o.total_amount, o.transaction_status, o.payment_type, o.created_at,
+                c.first_name, c.last_name, c.email,
+                json_agg(json_build_object('product_name', oi.product_name, 'quantity', oi.quantity)) 
+                  FILTER (WHERE oi.id IS NOT NULL) as items
+         FROM orders o
+         LEFT JOIN customers c ON o.customer_id = c.id
+         LEFT JOIN order_items oi ON oi.order_id = o.id
+         GROUP BY o.id, c.id
+         ORDER BY o.created_at DESC
+         LIMIT 6`
+      )
 
       res.json({
         periodDays: daysCount,
         summary: {
           totalVisitors,
           totalPageviews,
-          browsersOnly: totalBrowsers,
-          browsersOnlyPercentage: browsersPercentage,
-          totalOrders: totalOrdersCount,
-          paidOrders: totalPaidOrdersCount,
+          browsersOnly,
+          browsersOnlyPercentage,
+          totalOrders,
+          paidOrders,
+          pendingOrders,
+          failedOrders,
           conversionRate,
           totalRevenue,
+          totalCustomers,
+          totalUsers,
+          pendingLicenses,
           topProduct: topProducts[0] || null,
         },
-        funnel,
         dailyTrends,
-        topProducts: topProducts.slice(0, 10),
+        topProducts,
+        recentOrders,
       })
     } catch (err) {
       console.error("GET /api/admin/analytics error:", err.message)

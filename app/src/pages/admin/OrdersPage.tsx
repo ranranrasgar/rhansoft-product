@@ -20,6 +20,8 @@ import {
   Check,
   X,
   RefreshCw,
+  Trash2,
+  CheckSquare,
 } from "lucide-react"
 import { toast } from "sonner"
 import {
@@ -78,6 +80,9 @@ export function OrdersPage() {
   const [dateTo, setDateTo] = useState("")
   const [detailOrder, setDetailOrder] = useState<Order | null>(null)
   const [confirm, setConfirm] = useState<{ order: Order; action: "approve" | "cancel" } | null>(null)
+  const [deleteSingleConfirm, setDeleteSingleConfirm] = useState<Order | null>(null)
+  const [bulkConfirm, setBulkConfirm] = useState<{ action: "delete" | "email" | "approve" | "cancel"; count: number } | null>(null)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
 
   const fetchOrders = async () => {
@@ -85,7 +90,7 @@ export function OrdersPage() {
     try {
       const res = await fetch("/api/admin/orders", { headers: authHeaders() })
       const data = await res.json()
-      setOrders(data)
+      setOrders(Array.isArray(data) ? data : [])
     } catch {
       toast.error("Gagal memuat pesanan")
     } finally {
@@ -137,6 +142,95 @@ export function OrdersPage() {
     }
   }
 
+  // ── Single Delete Handler ──────────────────────────────────────────
+  const handleSingleDelete = async (orderId: string) => {
+    setBusy(true)
+    try {
+      const res = await fetch(`/api/admin/orders/${orderId}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Gagal menghapus pesanan")
+      toast.success(`Pesanan ${orderId} berhasil dihapus permanen`)
+      setSelectedIds((prev) => prev.filter((id) => id !== orderId))
+      await fetchOrders()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menghapus pesanan")
+    } finally {
+      setBusy(false)
+      setDeleteSingleConfirm(null)
+    }
+  }
+
+  // ── Bulk Delete Handler ────────────────────────────────────────────
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return
+    setBusy(true)
+    try {
+      const res = await fetch("/api/admin/orders/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ orderIds: selectedIds }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Gagal menghapus pesanan")
+      toast.success(`${data.deletedCount} pesanan terpilih berhasil dihapus`)
+      setSelectedIds([])
+      await fetchOrders()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal menghapus pesanan")
+    } finally {
+      setBusy(false)
+      setBulkConfirm(null)
+    }
+  }
+
+  // ── Bulk Email Handler ─────────────────────────────────────────────
+  const handleBulkEmail = async () => {
+    if (selectedIds.length === 0) return
+    setBusy(true)
+    toast.info(`Mengirim email ke ${selectedIds.length} pesanan...`)
+    try {
+      const res = await fetch("/api/admin/orders/bulk-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ orderIds: selectedIds }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Gagal mengirim email")
+      toast.success(`${data.sentCount} email berhasil dikirim${data.failedCount > 0 ? `, ${data.failedCount} gagal` : ""}`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal mengirim email")
+    } finally {
+      setBusy(false)
+      setBulkConfirm(null)
+    }
+  }
+
+  // ── Bulk Approve / Cancel Handler ──────────────────────────────────
+  const handleBulkAction = async (action: "approve" | "cancel") => {
+    if (selectedIds.length === 0) return
+    setBusy(true)
+    try {
+      const res = await fetch("/api/admin/orders/bulk-action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ orderIds: selectedIds, action }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || "Gagal memproses")
+      toast.success(`${data.updatedCount} pesanan berhasil di-${action === "approve" ? "setujui" : "batalkan"}`)
+      setSelectedIds([])
+      await fetchOrders()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Gagal memproses")
+    } finally {
+      setBusy(false)
+      setBulkConfirm(null)
+    }
+  }
+
   const filtered = orders.filter((o) => {
     const matchSearch =
       o.order_id.toLowerCase().includes(search.toLowerCase()) ||
@@ -149,10 +243,31 @@ export function OrdersPage() {
     return matchSearch && matchStatus && matchDate
   })
 
-  const handleExport = () => {
+  // ── Checkbox Controls ──────────────────────────────────────────────
+  const isAllSelected = filtered.length > 0 && filtered.every((o) => selectedIds.includes(o.order_id))
+  const toggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedIds([])
+    } else {
+      setSelectedIds(filtered.map((o) => o.order_id))
+    }
+  }
+
+  const toggleSelectRow = (orderId: string) => {
+    setSelectedIds((prev) =>
+      prev.includes(orderId) ? prev.filter((id) => id !== orderId) : [...prev, orderId]
+    )
+  }
+
+  const handleExport = (exportOnlySelected = false) => {
+    const targetRows = exportOnlySelected
+      ? filtered.filter((o) => selectedIds.includes(o.order_id))
+      : filtered
+    if (targetRows.length === 0) return
+
     const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`
     const header = ["Order ID", "Tanggal", "Pelanggan", "Email", "Telepon", "Total", "Metode", "Status"]
-    const rows = filtered.map((o) => [
+    const rows = targetRows.map((o) => [
       o.order_id,
       o.created_at.slice(0, 10),
       `${o.first_name} ${o.last_name}`.trim(),
@@ -163,10 +278,10 @@ export function OrdersPage() {
       o.transaction_status,
     ])
     const csv = [header, ...rows].map((r) => r.map(esc).join(",")).join("\r\n")
-    const url = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }))
+    const url = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" }))
     const a = document.createElement("a")
     a.href = url
-    a.download = `pesanan-${new Date().toISOString().slice(0, 10)}.csv`
+    a.download = `pesanan-${exportOnlySelected ? "terpilih-" : ""}${new Date().toISOString().slice(0, 10)}.csv`
     a.click()
     URL.revokeObjectURL(url)
   }
@@ -179,14 +294,14 @@ export function OrdersPage() {
           Pesanan
         </h1>
         <p className="text-sm text-muted-foreground">
-          Kelola semua transaksi pesanan
+          Kelola transaksi, hapus massal, kirim email global, dan pantau status
         </p>
       </div>
 
       {/* Stats */}
       <div className="grid gap-4 sm:grid-cols-4">
         <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Total</p>
+          <p className="text-xs text-muted-foreground">Total Pesanan</p>
           <p className="text-2xl font-bold">{orders.length}</p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
@@ -196,7 +311,7 @@ export function OrdersPage() {
           </p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Sukses</p>
+          <p className="text-xs text-muted-foreground">Lunas (Settlement)</p>
           <p className="text-2xl font-bold text-emerald-600">
             {orders.filter(
               (o) =>
@@ -206,7 +321,7 @@ export function OrdersPage() {
           </p>
         </div>
         <div className="rounded-xl border border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Gagal/Batal</p>
+          <p className="text-xs text-muted-foreground">Gagal/Batal/Expire</p>
           <p className="text-2xl font-bold text-red-600">
             {orders.filter(
               (o) =>
@@ -258,18 +373,109 @@ export function OrdersPage() {
           className="w-full sm:w-40"
           aria-label="Sampai tanggal"
         />
-        <Button variant="outline" onClick={handleExport} disabled={filtered.length === 0}>
+        <Button variant="outline" onClick={() => handleExport(false)} disabled={filtered.length === 0}>
           <Download className="mr-2 size-4" />
           Ekspor CSV
         </Button>
       </div>
+
+      {/* ── STICKY BATCH ACTIONS BAR (GLOBAL ACTIONS) ─────────────── */}
+      {selectedIds.length > 0 && (
+        <div className="sticky top-2 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary/40 bg-card p-3 shadow-lg">
+          <div className="flex items-center gap-2">
+            <Badge className="bg-primary text-primary-foreground font-semibold px-2.5 py-1">
+              <CheckSquare className="size-3.5 mr-1" />
+              {selectedIds.length} pesanan dipilih
+            </Badge>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedIds([])}
+              className="text-xs text-muted-foreground hover:text-foreground h-8"
+            >
+              Batal Pilih
+            </Button>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Bulk Resend Email */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBulkConfirm({ action: "email", count: selectedIds.length })}
+              disabled={busy}
+              className="text-xs h-8 gap-1.5"
+            >
+              <Mail className="size-3.5 text-blue-600" />
+              Kirim Email Global
+            </Button>
+
+            {/* Bulk Approve */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBulkConfirm({ action: "approve", count: selectedIds.length })}
+              disabled={busy}
+              className="text-xs h-8 gap-1.5 text-emerald-700 hover:text-emerald-800"
+            >
+              <Check className="size-3.5 text-emerald-600" />
+              Setujui Massal
+            </Button>
+
+            {/* Bulk Cancel */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setBulkConfirm({ action: "cancel", count: selectedIds.length })}
+              disabled={busy}
+              className="text-xs h-8 gap-1.5 text-amber-700 hover:text-amber-800"
+            >
+              <X className="size-3.5 text-amber-600" />
+              Batalkan Massal
+            </Button>
+
+            {/* Bulk Export */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleExport(true)}
+              className="text-xs h-8 gap-1.5"
+            >
+              <Download className="size-3.5" />
+              Ekspor Terpilih
+            </Button>
+
+            {/* Bulk Delete */}
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setBulkConfirm({ action: "delete", count: selectedIds.length })}
+              disabled={busy}
+              className="text-xs h-8 gap-1.5"
+            >
+              <Trash2 className="size-3.5" />
+              Hapus Global
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <div className="overflow-hidden rounded-xl border border-border">
         <table className="w-full text-sm">
           <thead className="bg-muted/50">
             <tr className="text-left">
-              <th className="px-4 py-3 font-medium text-muted-foreground">Order ID</th>
+              {/* Checkbox Master */}
+              <th className="w-10 px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={isAllSelected}
+                  onChange={toggleSelectAll}
+                  aria-label="Pilih semua pesanan"
+                  className="size-4 rounded border-border text-primary cursor-pointer accent-primary"
+                />
+              </th>
+              <th className="px-3 py-3 font-medium text-muted-foreground">Order ID</th>
               <th className="px-4 py-3 font-medium text-muted-foreground">Pelanggan</th>
               <th className="hidden px-4 py-3 font-medium text-muted-foreground md:table-cell">
                 Total
@@ -286,110 +492,135 @@ export function OrdersPage() {
           <tbody className="divide-y divide-border">
             {loading ? (
               <tr>
-                <td colSpan={6} className="py-12 text-center">
+                <td colSpan={7} className="py-12 text-center">
                   <Loader2 className="mx-auto size-6 animate-spin text-muted-foreground" />
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
               <tr>
-                <td colSpan={6} className="py-12 text-center text-muted-foreground">
+                <td colSpan={7} className="py-12 text-center text-muted-foreground">
                   Tidak ada pesanan
                 </td>
               </tr>
             ) : (
-              filtered.map((o) => (
-                <tr key={o.order_id} className="hover:bg-muted/30">
-                  <td className="px-4 py-3 font-mono text-xs">{o.order_id}</td>
-                  <td className="px-4 py-3">
-                    <p className="font-medium">
-                      {o.first_name} {o.last_name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{o.email}</p>
-                  </td>
-                  <td className="hidden px-4 py-3 font-semibold md:table-cell">
-                    {formatPrice(o.total_amount)}
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge variant={statusVariant(o.transaction_status)}>
-                      {o.transaction_status}
-                    </Badge>
-                    {o.payment_type === "legacy" && (
-                      <Badge variant="outline" className="ml-1">
-                        Pelanggan lama
+              filtered.map((o) => {
+                const isSelected = selectedIds.includes(o.order_id)
+                return (
+                  <tr
+                    key={o.order_id}
+                    className={`transition-colors hover:bg-muted/30 ${isSelected ? "bg-primary/5" : ""}`}
+                  >
+                    {/* Checkbox Row */}
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelectRow(o.order_id)}
+                        aria-label={`Pilih pesanan ${o.order_id}`}
+                        className="size-4 rounded border-border text-primary cursor-pointer accent-primary"
+                      />
+                    </td>
+                    <td className="px-3 py-3 font-mono text-xs font-semibold">{o.order_id}</td>
+                    <td className="px-4 py-3">
+                      <p className="font-medium">
+                        {o.first_name} {o.last_name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">{o.email}</p>
+                    </td>
+                    <td className="hidden px-4 py-3 font-semibold md:table-cell">
+                      {formatPrice(o.total_amount)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge variant={statusVariant(o.transaction_status)}>
+                        {o.transaction_status}
                       </Badge>
-                    )}
-                  </td>
-                  <td className="hidden px-4 py-3 text-xs text-muted-foreground md:table-cell">
-                    {new Date(o.created_at).toLocaleDateString("id-ID", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        size="icon-sm"
-                        variant="ghost"
-                        onClick={() => setDetailOrder(o)}
-                        title="Lihat detail"
-                      >
-                        <Eye className="size-4" />
-                      </Button>
-                      <Button
-                        size="icon-sm"
-                        variant="ghost"
-                        onClick={() => handleResendEmail(o.order_id)}
-                        title="Kirim ulang email"
-                      >
-                        <Mail className="size-4" />
-                      </Button>
-                      {/* Pesanan pelanggan lama tidak ada di Midtrans */}
-                      {o.payment_type !== "legacy" && (
+                      {o.payment_type === "legacy" && (
+                        <Badge variant="outline" className="ml-1">
+                          Pelanggan lama
+                        </Badge>
+                      )}
+                    </td>
+                    <td className="hidden px-4 py-3 text-xs text-muted-foreground md:table-cell">
+                      {new Date(o.created_at).toLocaleDateString("id-ID", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
                         <Button
                           size="icon-sm"
                           variant="ghost"
-                          disabled={busy}
-                          onClick={() => runAction(o.order_id, "sync")}
-                          title="Cek status ke Midtrans"
+                          onClick={() => setDetailOrder(o)}
+                          title="Lihat detail"
                         >
-                          <RefreshCw className="size-4" />
+                          <Eye className="size-4" />
                         </Button>
-                      )}
-                      {o.transaction_status === "pending" && (
-                        <>
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          onClick={() => handleResendEmail(o.order_id)}
+                          title="Kirim ulang email"
+                        >
+                          <Mail className="size-4" />
+                        </Button>
+                        {o.payment_type !== "legacy" && (
                           <Button
                             size="icon-sm"
                             variant="ghost"
-                            className="text-emerald-600"
-                            onClick={() => setConfirm({ order: o, action: "approve" })}
-                            title="Setujui (konfirmasi pembayaran manual)"
+                            disabled={busy}
+                            onClick={() => runAction(o.order_id, "sync")}
+                            title="Cek status ke Midtrans"
                           >
-                            <Check className="size-4" />
+                            <RefreshCw className="size-4" />
                           </Button>
-                          <Button
-                            size="icon-sm"
-                            variant="ghost"
-                            className="text-red-600"
-                            onClick={() => setConfirm({ order: o, action: "cancel" })}
-                            title="Batalkan pesanan"
-                          >
-                            <X className="size-4" />
-                          </Button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))
+                        )}
+                        {o.transaction_status === "pending" && (
+                          <>
+                            <Button
+                              size="icon-sm"
+                              variant="ghost"
+                              className="text-emerald-600"
+                              onClick={() => setConfirm({ order: o, action: "approve" })}
+                              title="Setujui (konfirmasi pembayaran manual)"
+                            >
+                              <Check className="size-4" />
+                            </Button>
+                            <Button
+                              size="icon-sm"
+                              variant="ghost"
+                              className="text-amber-600"
+                              onClick={() => setConfirm({ order: o, action: "cancel" })}
+                              title="Batalkan pesanan"
+                            >
+                              <X className="size-4" />
+                            </Button>
+                          </>
+                        )}
+                        {/* Tombol Hapus Satuan */}
+                        <Button
+                          size="icon-sm"
+                          variant="ghost"
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => setDeleteSingleConfirm(o)}
+                          title="Hapus pesanan ini"
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })
             )}
           </tbody>
         </table>
       </div>
 
-      {/* Konfirmasi aksi */}
+      {/* ── Dialog Konfirmasi Single Action (Approve / Cancel) ────── */}
       <AlertDialog open={!!confirm} onOpenChange={(open) => !open && !busy && setConfirm(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -398,7 +629,7 @@ export function OrdersPage() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {confirm?.action === "approve"
-                ? `Pesanan ${confirm.order.order_id} (${formatPrice(confirm.order.total_amount)}) ditandai LUNAS secara manual dan email lisensi/download langsung dikirim ke ${confirm.order.email}. Pastikan pembayaran sudah benar-benar diterima. Midtrans tidak ikut diperbarui.`
+                ? `Pesanan ${confirm.order.order_id} (${formatPrice(confirm.order.total_amount)}) ditandai LUNAS secara manual dan email lisensi/download langsung dikirim ke ${confirm.order.email}. Pastikan pembayaran sudah benar-benar diterima.`
                 : `Pesanan ${confirm?.order.order_id} akan dibatalkan di Midtrans dan di sistem. Pelanggan tidak bisa lagi membayar pesanan ini.`}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -412,6 +643,74 @@ export function OrdersPage() {
               }}
             >
               {busy ? "Memproses..." : confirm?.action === "approve" ? "Ya, setujui" : "Ya, batalkan"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Dialog Konfirmasi Single Delete ───────────────────────── */}
+      <AlertDialog open={!!deleteSingleConfirm} onOpenChange={(open) => !open && !busy && setDeleteSingleConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-red-600">
+              Hapus pesanan {deleteSingleConfirm?.order_id}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Tindakan ini akan menghapus pesanan <strong>{deleteSingleConfirm?.order_id}</strong> beserta item belanja dan log pembayarannya secara permanen dari database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700 text-white"
+              disabled={busy}
+              onClick={(e) => {
+                e.preventDefault()
+                if (deleteSingleConfirm) handleSingleDelete(deleteSingleConfirm.order_id)
+              }}
+            >
+              {busy ? "Menghapus..." : "Ya, Hapus Permanen"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── Dialog Konfirmasi Bulk Action (Delete / Email / Approve / Cancel) ── */}
+      <AlertDialog open={!!bulkConfirm} onOpenChange={(open) => !open && !busy && setBulkConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className={bulkConfirm?.action === "delete" ? "text-red-600" : ""}>
+              {bulkConfirm?.action === "delete" && `Hapus ${bulkConfirm.count} pesanan terpilih secara permanen?`}
+              {bulkConfirm?.action === "email" && `Kirim ulang email untuk ${bulkConfirm.count} pesanan terpilih?`}
+              {bulkConfirm?.action === "approve" && `Setujui manual ${bulkConfirm.count} pesanan terpilih?`}
+              {bulkConfirm?.action === "cancel" && `Batalkan ${bulkConfirm.count} pesanan terpilih?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {bulkConfirm?.action === "delete" &&
+                "Semua pesanan yang dipilih beserta data item dan riwayat pembayarannya akan dihapus permanen dari sistem. Aksi ini tidak dapat dibatalkan."}
+              {bulkConfirm?.action === "email" &&
+                "Sistem akan mengirimkan email konfirmasi pesanan dan instruksi lisensi ke masing-masing alamat email pelanggan."}
+              {bulkConfirm?.action === "approve" &&
+                "Hanya pesanan berstatus pending yang akan diubah menjadi lunas (settlement) dan email instruksi download akan langsung dikirimkan."}
+              {bulkConfirm?.action === "cancel" &&
+                "Pesanan pending yang dipilih akan ditandai dibatalkan (cancel) dan tidak dapat dibayar lagi."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={busy}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className={bulkConfirm?.action === "delete" ? "bg-red-600 hover:bg-red-700 text-white" : ""}
+              disabled={busy}
+              onClick={(e) => {
+                e.preventDefault()
+                if (!bulkConfirm) return
+                if (bulkConfirm.action === "delete") handleBulkDelete()
+                else if (bulkConfirm.action === "email") handleBulkEmail()
+                else if (bulkConfirm.action === "approve") handleBulkAction("approve")
+                else if (bulkConfirm.action === "cancel") handleBulkAction("cancel")
+              }}
+            >
+              {busy ? "Memproses..." : "Lanjutkan"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -1391,6 +1391,131 @@ app.post("/api/admin/orders/:orderId/action", authMiddleware("admin"), async (re
   }
 })
 
+// ── Delete single order (admin) ──────────────────────────────────
+app.delete("/api/admin/orders/:orderId", authMiddleware("admin"), async (req, res) => {
+  try {
+    const { orderId } = req.params
+    const order = await queryOne(`SELECT id, order_id FROM orders WHERE order_id = $1`, [orderId])
+    if (!order) return res.status(404).json({ error: "Pesanan tidak ditemukan" })
+
+    await query(`UPDATE legacy_claims SET order_id = NULL WHERE order_id = $1`, [order.id])
+    await query(`DELETE FROM payment_notifications WHERE order_id = $1`, [orderId])
+    await query(`DELETE FROM order_items WHERE order_id = $1`, [order.id])
+    await query(`DELETE FROM orders WHERE id = $1`, [order.id])
+
+    console.log(`🗑️ Order ${orderId} dihapus oleh ${req.user.email}`)
+    res.json({ ok: true, deleted: orderId })
+  } catch (err) {
+    console.error("Delete order error:", err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ── Bulk delete orders (admin) ────────────────────────────────────
+app.post("/api/admin/orders/bulk-delete", authMiddleware("admin"), async (req, res) => {
+  try {
+    const { orderIds } = req.body || {}
+    if (!Array.isArray(orderIds) || orderIds.length === 0) {
+      return res.status(400).json({ error: "Daftar ID pesanan tidak boleh kosong" })
+    }
+
+    const rows = await queryAll(
+      `SELECT id, order_id FROM orders WHERE order_id = ANY($1::varchar[])`,
+      [orderIds]
+    )
+    if (rows.length === 0) {
+      return res.json({ ok: true, deletedCount: 0 })
+    }
+    const dbIds = rows.map((r) => r.id)
+    const strIds = rows.map((r) => r.order_id)
+
+    await query(`UPDATE legacy_claims SET order_id = NULL WHERE order_id = ANY($1::int[])`, [dbIds])
+    await query(`DELETE FROM payment_notifications WHERE order_id = ANY($1::varchar[])`, [strIds])
+    await query(`DELETE FROM order_items WHERE order_id = ANY($1::int[])`, [dbIds])
+    await query(`DELETE FROM orders WHERE id = ANY($1::int[])`, [dbIds])
+
+    console.log(`🗑️ Bulk delete: ${strIds.length} pesanan dihapus oleh ${req.user.email}`)
+    res.json({ ok: true, deletedCount: strIds.length })
+  } catch (err) {
+    console.error("Bulk delete orders error:", err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ── Bulk resend email (admin) ─────────────────────────────────────
+app.post("/api/admin/orders/bulk-email", authMiddleware("admin"), async (req, res) => {
+  try {
+    const { orderIds } = req.body || {}
+    if (!Array.isArray(orderIds) || orderIds.length === 0) {
+      return res.status(400).json({ error: "Daftar ID pesanan tidak boleh kosong" })
+    }
+
+    let sentCount = 0
+    let failedCount = 0
+
+    for (const orderId of orderIds) {
+      try {
+        await sendOrderEmailFor(orderId)
+        sentCount++
+      } catch (e) {
+        console.warn(`Bulk email: failed for ${orderId}:`, e.message)
+        failedCount++
+      }
+    }
+
+    res.json({ ok: true, sentCount, failedCount })
+  } catch (err) {
+    console.error("Bulk email error:", err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// ── Bulk approve / cancel (admin) ─────────────────────────────────
+app.post("/api/admin/orders/bulk-action", authMiddleware("admin"), async (req, res) => {
+  try {
+    const { orderIds, action } = req.body || {}
+    if (!Array.isArray(orderIds) || orderIds.length === 0) {
+      return res.status(400).json({ error: "Daftar ID pesanan tidak boleh kosong" })
+    }
+    if (action !== "approve" && action !== "cancel") {
+      return res.status(400).json({ error: "Aksi tidak valid (hanya approve atau cancel)" })
+    }
+
+    let updatedCount = 0
+    if (action === "approve") {
+      for (const orderId of orderIds) {
+        const row = await queryOne(
+          `UPDATE orders SET transaction_status = 'settlement', payment_type = 'manual', paid_at = NOW()
+           WHERE order_id = $1 AND transaction_status = 'pending' RETURNING id, order_id`,
+          [orderId]
+        )
+        if (row) {
+          updatedCount++
+          try {
+            await sendOrderEmailFor(orderId)
+          } catch {}
+        }
+      }
+    } else if (action === "cancel") {
+      for (const orderId of orderIds) {
+        const row = await queryOne(
+          `UPDATE orders SET transaction_status = 'cancel'
+           WHERE order_id = $1 AND transaction_status = 'pending' RETURNING id, order_id`,
+          [orderId]
+        )
+        if (row) {
+          updatedCount++
+        }
+      }
+    }
+
+    res.json({ ok: true, updatedCount })
+  } catch (err) {
+    console.error("Bulk action error:", err.message)
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // ── Pesanan saya (pelanggan login) ──────────────────────────────
 const SNAP_TOKEN_TTL_MS = 24 * 60 * 60 * 1000 // masa berlaku token Snap bawaan Midtrans
 
